@@ -34,6 +34,7 @@ from telemetry.hub import TelemetryHub
 from themes.theme import ThemeManager
 from ui.compositor import Compositor
 from ui.debug_overlay import DebugInfo
+from ui.layout_store import LayoutStateStore
 from ui.manager import WidgetManager
 from widgets.base import Widget
 from widgets.registry import create_widgets
@@ -58,6 +59,7 @@ class FrontPanel:
         telemetry_interval_s: float = 0.5,
         clock: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], _dt.datetime] = _dt.datetime.now,
+        state_store: LayoutStateStore | None = None,
     ) -> None:
         self.display = display
         self.hub = hub
@@ -75,6 +77,12 @@ class FrontPanel:
         self.manager = WidgetManager(
             widgets, float(layout.get("rotation_interval_s", 6.0)), on_rotate=self._on_rotate
         )
+        self.state_store = state_store
+        if state_store is not None:
+            saved = state_store.load()
+            if saved is not None:
+                self.manager.apply_state(saved)
+        self._saved_state = self.manager.export_state()
         self.director = AnimationDirector(self.bus, self.engine, profiles or ProfileLibrary.load(), lambda: self.themes.active)
         self.compositor = Compositor(self.manager, self.themes, self.engine)
 
@@ -99,6 +107,7 @@ class FrontPanel:
             return
         self.bus.emit(EventType.SYSTEM_SHUTDOWN)
         self.running = False
+        self.persist_layout()
         self.hub.stop()
         self.display.close()
 
@@ -106,7 +115,20 @@ class FrontPanel:
     def handle_control(self, event: ControlEvent) -> str:
         action = self.manager.handle(event)
         self.debug_info.last_control = f"{event.name} → {action}"
+        self.persist_layout()
         return action
+
+    def persist_layout(self) -> bool:
+        """Save layout state if a store is configured and the state changed."""
+        if self.state_store is None:
+            return False
+        state = self.manager.export_state()
+        if state == self._saved_state:
+            return False
+        if self.state_store.save(state):
+            self._saved_state = state
+            return True
+        return False
 
     # ---- frame loop ---------------------------------------------------------------
     def step(self, now: float | None = None) -> QImage:

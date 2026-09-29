@@ -55,6 +55,9 @@ class WidgetState:
     def collapsed(self) -> bool:
         return self.size is WidgetSize.COLLAPSED
 
+    def to_dict(self) -> dict[str, Any]:
+        return {"pinned": self.pinned, "rotating": self.rotating, "hidden": self.hidden, "size": self.size.value}
+
     @staticmethod
     def from_dict(data: dict[str, Any]) -> "WidgetState":
         return WidgetState(

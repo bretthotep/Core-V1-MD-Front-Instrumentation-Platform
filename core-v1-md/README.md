@@ -74,6 +74,8 @@ python -m simulator --width 180 --height 760    # prototype a different panel si
 python -m simulator --layout my_layout.json     # custom widget layout
 python -m simulator --telemetry system          # live CPU / RAM / network from this PC
 python -m simulator --thresholds telemetry/thresholds.json   # custom alert thresholds
+python -m simulator --no-persist                # don't load or save layout changes
+python -m simulator --state-file my_state.json  # keep layout changes in a specific file
 
 # Headless: render N frames off-screen and save the last one (CI / design reviews)
 python -m simulator --headless --frames 180 --launch Cyberpunk2077.exe --screenshot out.png
@@ -109,6 +111,11 @@ into the same internal `ControlEvent`s that the hardware will produce.
 | `L` | `LONG_PRESS` | Pin / unpin the focused widget |
 | `H` / `Home` / `Backspace` | `HOME` | Focus first widget; press again to restore the default layout |
 | `Space` / left click | *physical push switch* | Tap = `PRESS`, double-tap = `DOUBLE_PRESS`, hold = `LONG_PRESS` (real gesture timing) |
+
+Layout changes (pin, hide, expand, collapse) are saved as you make them and restored on
+the next launch. They go to `%APPDATA%\CoreV1MD\layout_state.json` on Windows and
+`~/.config/core-v1-md/layout_state.json` elsewhere. Press HOME twice to go back to the
+default layout. Headless runs never touch this file unless `--state-file` is given.
 
 Simulator-only commands:
 

@@ -15,13 +15,18 @@ HOME               Focus the first widget; pressed again, restore default layout
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+import logging
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from core.controls import ControlEvent
-from widgets.base import Widget
+from widgets.base import Widget, WidgetState
+
+log = logging.getLogger(__name__)
 
 ROTATION_SLOT = "__rotation__"
+STATE_VERSION = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +174,41 @@ class WidgetManager:
         self.rotation_index = 0
         slots = self.slots()
         self.focus_key = slots[0].key if slots else None
+
+    # ---- persistence -----------------------------------------------------------
+    def export_state(self) -> dict[str, Any]:
+        """User-changeable layout state (pin / rotate / hide / size) as JSON-safe data."""
+        return {
+            "version": STATE_VERSION,
+            "widgets": {w.id: w.state.to_dict() for w in self.widgets},
+        }
+
+    def apply_state(self, data: Mapping[str, Any]) -> int:
+        """Restore state saved by :meth:`export_state`. Returns the number of widgets restored.
+
+        Unknown widget ids (the layout changed since saving) are ignored, widgets
+        missing from the saved data keep their layout defaults, and any invalid
+        entry is skipped rather than failing startup.
+        """
+        if data.get("version") != STATE_VERSION or not isinstance(data.get("widgets"), Mapping):
+            log.warning("Ignoring saved layout state with unsupported format")
+            return 0
+        restored = 0
+        for widget in self.widgets:
+            entry = data["widgets"].get(widget.id)
+            if not isinstance(entry, Mapping):
+                continue
+            try:
+                widget.state = WidgetState.from_dict(dict(entry))
+            except (ValueError, TypeError):
+                log.warning("Ignoring invalid saved state for widget %s", widget.id)
+                continue
+            restored += 1
+        self.rotation_index = 0
+        slots = self.slots()
+        if slots and all(s.key != self.focus_key for s in slots):
+            self.focus_key = slots[0].key
+        return restored
 
     def rotate(self) -> Widget | None:
         members = self.rotating_members()

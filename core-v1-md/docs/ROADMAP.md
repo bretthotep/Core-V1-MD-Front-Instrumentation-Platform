@@ -5,6 +5,7 @@
 Establish the development environment and the display-agnostic core.
 
 - [x] Repository structure, requirements, test harness
+- [x] CI: lint, tests and headless render on Windows and Ubuntu
 - [x] `DisplayDevice` abstraction with `SimulatorDisplay`, `OffscreenDisplay`, `FutureOledDisplay`
 - [x] Resizable 240 × 1000 simulator window
 - [x] Keyboard/mouse mapping to `ControlEvent`s
@@ -22,7 +23,7 @@ Establish the development environment and the display-agnostic core.
 - [x] Pinned / rotating / hidden / expanded / collapsed states
 - [x] Jog navigation, focus, auto-rotation, scroll-to-focus layout
 - [x] JSON layout configuration
-- [ ] Persist user layout changes between sessions
+- [x] Persist user layout changes between sessions
 - [ ] Storage and peripheral widgets
 
 **Done when:** every widget renders in every state against real and missing data, and the

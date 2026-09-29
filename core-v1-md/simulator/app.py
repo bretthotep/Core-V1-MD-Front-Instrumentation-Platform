@@ -30,6 +30,7 @@ from telemetry.hub import TelemetryHub, Thresholds
 from telemetry.mock_provider import MockTelemetryProvider
 from telemetry.provider import SectionFilter, TelemetryProvider
 from themes.theme import ThemeManager
+from ui.layout_store import LayoutStateStore, default_state_path
 from ui.panel import FrontPanel, load_layout
 from widgets.audio_visualiser import AudioVisualiserWidget
 
@@ -47,6 +48,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--fps", type=float, default=60.0, help="frame rate (default 60)")
     parser.add_argument("--theme", default=None, help="theme id (default sony_minidisc)")
     parser.add_argument("--layout", type=Path, default=None, help="widget layout JSON")
+    parser.add_argument(
+        "--state-file",
+        type=Path,
+        default=None,
+        help="layout state file (default: per-user config dir; headless runs do not persist unless set)",
+    )
+    parser.add_argument("--no-persist", action="store_true", help="do not load or save layout changes")
     parser.add_argument("--debug", action="store_true", help="start with the debug overlay enabled")
     parser.add_argument("--seed", type=int, default=1234, help="mock telemetry seed")
     parser.add_argument(
@@ -99,7 +107,8 @@ class Simulator:
         self.hub = TelemetryHub(self.bus, build_providers(args, self.mock), audio=MockAudioSource(), thresholds=thresholds)
         themes = ThemeManager(active=args.theme)
         layout = load_layout(args.layout) if args.layout else None
-        self.panel = FrontPanel(display, self.hub, self.bus, themes, layout, clock=clock)
+        store = LayoutStateStore(args.state_file) if args.state_file and not args.no_persist else None
+        self.panel = FrontPanel(display, self.hub, self.bus, themes, layout, clock=clock, state_store=store)
         self.panel.compositor.debug = args.debug
 
     def command(self, name: str) -> None:
@@ -125,6 +134,7 @@ class Simulator:
             focused = panel.manager.focused
             if focused is not None:
                 panel.manager.hide(focused.id)
+                panel.persist_layout()
         elif name == "next_visualiser":
             for widget in panel.manager.widgets:
                 if isinstance(widget, AudioVisualiserWidget):
@@ -176,6 +186,10 @@ def run_interactive(args: argparse.Namespace) -> int:
 
     app = QApplication.instance() or QApplication(sys.argv[:1])
     register_fonts()
+    if args.state_file is None and not args.no_persist:
+        args.state_file = default_state_path()
+    if args.state_file and not args.no_persist:
+        log.info("Layout state: %s (HOME twice restores defaults; --no-persist disables)", args.state_file)
     window = SimulatorWindow(args.width, args.height)
     sim = Simulator(args, window.display)
 

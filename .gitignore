@@ -7,3 +7,4 @@ venv/
 build/
 dist/
 core-v1-md/screenshots/
+core-v1-md/render/
