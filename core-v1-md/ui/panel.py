@@ -36,7 +36,7 @@ from ui.compositor import Compositor
 from ui.debug_overlay import DebugInfo
 from ui.manager import WidgetManager
 from widgets.base import Widget
-from widgets.registry import create_widget
+from widgets.registry import create_widgets
 
 DEFAULT_LAYOUT = Path(__file__).resolve().parent / "default_layout.json"
 
@@ -68,7 +68,7 @@ class FrontPanel:
         self.telemetry_interval_s = telemetry_interval_s
 
         layout = layout or load_layout()
-        widgets: list[Widget] = [create_widget(spec) for spec in layout["widgets"]]
+        widgets: list[Widget] = create_widgets(layout["widgets"])
         for widget in widgets:
             widget.attach(self.bus)
         self.engine = AnimationEngine()

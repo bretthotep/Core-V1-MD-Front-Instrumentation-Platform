@@ -44,7 +44,11 @@ class AnimationEngine:
         return animation
 
     def cancel(self, target: str | None = None) -> None:
-        self._active = [a for a in self._active if target is not None and a.target != target]
+        """Cancel all animations, or only those on ``target``."""
+        if target is None:
+            self._active = []
+        else:
+            self._active = [a for a in self._active if a.target != target]
 
     def tick(self, dt_ms: float) -> None:
         for item in self._active:

@@ -14,7 +14,7 @@ from widgets.cpu import CpuWidget
 from widgets.gpu import GpuWidget
 from widgets.network import NetworkWidget
 from widgets.ram import RamWidget
-from widgets.registry import WIDGET_TYPES, create_widget, register_widget
+from widgets.registry import WIDGET_TYPES, create_widget, create_widgets, register_widget
 from widgets.system import SystemWidget
 
 __all__ = [
@@ -35,5 +35,6 @@ __all__ = [
     "WidgetSize",
     "WidgetState",
     "create_widget",
+    "create_widgets",
     "register_widget",
 ]

@@ -39,7 +39,7 @@ class SystemWidget(Widget):
         for fan in fans:
             p.draw_label(painter, QRectF(rect.left(), y, 44, 10), fan.name, theme)
             role = "critical" if fan.rpm <= 0 else "primary"
-            p.draw_segment_bar(painter, QRectF(rect.left() + 46, y + 2, rect.width() - 100, 6), fan.rpm / FAN_FULL_SCALE_RPM, theme, role=role)
+            p.draw_segment_bar(painter, QRectF(rect.left() + 46, y + 2, rect.width() - 100, 6), fan.rpm / FAN_FULL_SCALE_RPM, theme, alert_at=None, critical_at=None, role=role)
             p.draw_label(painter, QRectF(rect.right() - 52, y, 52, 10), f"{fan.rpm:.0f}", theme, "secondary", Qt.AlignmentFlag.AlignRight)
             y += 14
         if self.state.expanded and sys_:

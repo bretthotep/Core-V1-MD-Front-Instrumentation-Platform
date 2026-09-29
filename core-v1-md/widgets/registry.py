@@ -45,7 +45,23 @@ def create_widget(spec: dict[str, Any]) -> Widget:
         cls = WIDGET_TYPES[kind]
     except KeyError as exc:
         raise ValueError(f"Unknown widget kind {kind!r}; available: {sorted(WIDGET_TYPES)}") from exc
-    state = WidgetState.from_dict(spec)
     widget_id = spec.pop("id", None)
+    state = WidgetState.from_dict(spec)
     config = {k: v for k, v in spec.items() if k not in {"pinned", "rotating", "hidden", "size"}}
     return cls(widget_id, state, **config)
+
+
+def create_widgets(specs: list[dict[str, Any]]) -> list[Widget]:
+    """Build a layout, giving repeated kinds without explicit ids unique ids (``cpu``, ``cpu-2``...)."""
+    widgets: list[Widget] = []
+    used: set[str] = set()
+    for spec in specs:
+        widget = create_widget(spec)
+        if "id" not in spec:
+            base, n = widget.id, 2
+            while widget.id in used:
+                widget.id = f"{base}-{n}"
+                n += 1
+        used.add(widget.id)
+        widgets.append(widget)
+    return widgets

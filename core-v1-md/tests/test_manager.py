@@ -95,3 +95,21 @@ def test_layout_keeps_focused_widget_visible():
         layout = compute_layout(manager, 240, height, 6)
         focused = next(i for i in layout.items if i.focused)
         assert focused.rect.top() >= 0 and focused.rect.bottom() <= height + 0.5
+
+
+def test_duplicate_kinds_get_unique_ids():
+    from widgets.registry import create_widgets
+
+    widgets = create_widgets([{"kind": "cpu"}, {"kind": "cpu"}, {"kind": "cpu", "id": "main"}])
+    assert [w.id for w in widgets] == ["cpu", "cpu-2", "main"]
+    WidgetManager(widgets)  # no duplicate-id error
+
+
+def test_pinning_rotating_member_keeps_rotation_slot_stable():
+    specs = [{"kind": "cpu", "rotating": True}, {"kind": "gpu", "rotating": True}, {"kind": "ram", "rotating": True}]
+    manager = WidgetManager([create_widget(s) for s in specs])
+    manager.rotate()  # gpu showing
+    manager.focus_key = ROTATION_SLOT
+    manager.handle(ControlEvent.LONG_PRESS)  # pin gpu
+    assert manager.widget("gpu").state.pinned
+    assert manager.current_rotating().id == "ram"

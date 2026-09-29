@@ -126,7 +126,13 @@ class WidgetManager:
             if widget.handle_control(event):
                 action = f"{widget.id} action"
             else:
+                members_before = self.rotating_members()
                 widget.state.pinned = not widget.state.pinned
+                if widget.state.pinned and widget in members_before:
+                    # Keep the rotation slot on the member that followed the pinned one.
+                    remaining = self.rotating_members()
+                    if remaining:
+                        self.rotation_index = members_before.index(widget) % len(remaining)
                 self.focus_key = widget.id if widget.state.pinned or not widget.state.rotating else ROTATION_SLOT
                 if widget.state.pinned is False and widget.state.rotating:
                     members = self.rotating_members()

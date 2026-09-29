@@ -11,7 +11,7 @@ reveal" is a rule in ``animations/profiles/default.json``.
 """
 
 from animations.director import AnimationDirector
-from animations.engine import AnimationEngine, SCREEN
+from animations.engine import SCREEN, AnimationEngine
 from animations.profiles import AnimationProfile, AnimationSpec, ProfileLibrary, ProfileRule
 from animations.types import (
     ANIMATION_TYPES,

@@ -110,7 +110,7 @@ class Oscilloscope(VisualiserMode):
 
 
 class NetworkActivity(VisualiserMode):
-    """Mirrors downstream (up) and upstream (down) throughput as a scrolling bar field."""
+    """Scrolling bar field: downstream throughput above the midline, upstream below it."""
 
     id = "network_activity"
     label = "NET"
