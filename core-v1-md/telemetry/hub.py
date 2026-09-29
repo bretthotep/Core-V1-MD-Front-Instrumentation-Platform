@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, fields
+from pathlib import Path
+from typing import Any
 
 from core.events import Event, EventBus, EventType
 from telemetry.audio import AudioSource
@@ -19,6 +22,35 @@ class Thresholds:
     high_temp_c: float = 85.0
     high_temp_clear_c: float = 80.0  # hysteresis: must drop below this to re-arm
     low_fan_rpm: float = 300.0
+
+    def __post_init__(self) -> None:
+        if self.high_temp_clear_c > self.high_temp_c:
+            raise ValueError("high_temp_clear_c must not exceed high_temp_c")
+        if self.low_fan_rpm < 0:
+            raise ValueError("low_fan_rpm must be >= 0")
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> Thresholds:
+        """Build thresholds from a mapping; missing keys keep their defaults."""
+        known = {f.name for f in fields(cls)}
+        unknown = set(data) - known - {"$comment"}
+        if unknown:
+            raise ValueError(f"unknown threshold keys: {', '.join(sorted(unknown))}")
+        values: dict[str, float] = {}
+        for key in known & set(data):
+            value = data[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"threshold {key!r} must be a number")
+            values[key] = float(value)
+        return cls(**values)
+
+    @classmethod
+    def load(cls, path: str | Path) -> Thresholds:
+        """Load thresholds from a JSON object file (see ``telemetry/thresholds.json``)."""
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError(f"{path}: thresholds file must contain a JSON object")
+        return cls.from_dict(data)
 
 
 class TelemetryHub:

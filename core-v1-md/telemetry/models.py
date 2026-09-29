@@ -41,6 +41,8 @@ class MemoryTelemetry:
 
 @dataclass(frozen=True, slots=True)
 class NetworkTelemetry:
+    """Link state and throughput. ``down_bps`` / ``up_bps`` are *bytes* per second."""
+
     adapter: str
     connected: bool
     down_bps: float = 0.0

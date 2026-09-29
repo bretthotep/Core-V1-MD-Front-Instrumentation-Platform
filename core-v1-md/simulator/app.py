@@ -4,6 +4,7 @@ Interactive::
 
     python -m simulator                  # 240x1000 window, 60 fps
     python -m simulator --debug --theme sony_es_mono
+    python -m simulator --telemetry system   # live CPU/RAM/network from this PC
 
 Headless (CI, screenshots, quick layout checks)::
 
@@ -25,8 +26,9 @@ from PySide6.QtGui import QFontDatabase
 from core.events import EventBus, EventType
 from display.device import DisplayDevice, OffscreenDisplay
 from telemetry.audio import MockAudioSource
-from telemetry.hub import TelemetryHub
+from telemetry.hub import TelemetryHub, Thresholds
 from telemetry.mock_provider import MockTelemetryProvider
+from telemetry.provider import SectionFilter, TelemetryProvider
 from themes.theme import ThemeManager
 from ui.panel import FrontPanel, load_layout
 from widgets.audio_visualiser import AudioVisualiserWidget
@@ -47,6 +49,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--layout", type=Path, default=None, help="widget layout JSON")
     parser.add_argument("--debug", action="store_true", help="start with the debug overlay enabled")
     parser.add_argument("--seed", type=int, default=1234, help="mock telemetry seed")
+    parser.add_argument(
+        "--telemetry",
+        choices=("mock", "system"),
+        default="mock",
+        help="mock: simulated data only; system: live CPU/RAM/network from this PC over the mock (default mock)",
+    )
+    parser.add_argument("--adapter", default=None, help="system telemetry: network adapter to monitor (default auto)")
+    parser.add_argument("--thresholds", type=Path, default=None, help="alert thresholds JSON")
     parser.add_argument("--headless", action="store_true", help="render off-screen without a window")
     parser.add_argument("--frames", type=int, default=120, help="frames to render in headless mode")
     parser.add_argument("--screenshot", type=Path, default=None, help="save the final headless frame to this PNG")
@@ -63,6 +73,20 @@ def register_fonts() -> None:
             QFontDatabase.addApplicationFont(str(path))
 
 
+def build_providers(args: argparse.Namespace, mock: MockTelemetryProvider) -> list[TelemetryProvider]:
+    """Provider stack for the chosen telemetry mode (later providers win on merge).
+
+    In ``system`` mode only live data is shown for hardware; GPU renders ``--``
+    until a GPU provider exists. The mock still supplies the application
+    section so the launch/close scenario keys keep driving app animations.
+    """
+    if getattr(args, "telemetry", "mock") == "system":
+        from telemetry.system_provider import SystemTelemetryProvider
+
+        return [SectionFilter(mock, ["application"]), SystemTelemetryProvider(adapter=getattr(args, "adapter", None))]
+    return [mock]
+
+
 class Simulator:
     """Owns the panel plus the simulator-only mock providers and scenario commands."""
 
@@ -71,7 +95,8 @@ class Simulator:
         self.clock = clock
         self.bus = EventBus()
         self.mock = MockTelemetryProvider(seed=args.seed)
-        self.hub = TelemetryHub(self.bus, [self.mock], audio=MockAudioSource())
+        thresholds = Thresholds.load(args.thresholds) if args.thresholds else None
+        self.hub = TelemetryHub(self.bus, build_providers(args, self.mock), audio=MockAudioSource(), thresholds=thresholds)
         themes = ThemeManager(active=args.theme)
         layout = load_layout(args.layout) if args.layout else None
         self.panel = FrontPanel(display, self.hub, self.bus, themes, layout, clock=clock)
