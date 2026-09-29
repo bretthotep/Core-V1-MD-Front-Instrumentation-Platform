@@ -1,0 +1,30 @@
+{
+  "id": "sony_minidisc",
+  "name": "Sony MiniDisc",
+  "colours": {
+    "background": "#000000",
+    "primary": "#00D8FF",
+    "secondary": "#D8F8FF",
+    "alert": "#FFD060",
+    "critical": "#FF4040",
+    "dim": "#0A5A6E",
+    "grid": "#062630"
+  },
+  "fonts": {
+    "display": "DejaVu Sans Mono",
+    "label": "DejaVu Sans"
+  },
+  "metrics": {
+    "padding": 10,
+    "widget_gap": 6,
+    "label_size": 9,
+    "value_size": 22,
+    "segment_gap": 2,
+    "unlit_alpha": 0.14
+  },
+  "animation": {
+    "default_duration_ms": 450,
+    "easing": "out_cubic",
+    "accent": "primary"
+  }
+}

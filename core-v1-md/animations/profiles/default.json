@@ -1,0 +1,49 @@
+{
+  "profiles": {
+    "boot": [
+      {"type": "segment_reveal", "duration_ms": 1400, "segment": 10, "easing": "in_out_sine"},
+      {"type": "scan_line", "duration_ms": 1400, "easing": "in_out_sine", "trail": 90, "sweep_only": true}
+    ],
+    "shutdown": [
+      {"type": "vertical_wipe", "duration_ms": 800, "reverse": true, "easing": "in_cubic"}
+    ],
+    "app_default": [
+      {"type": "horizontal_wipe", "target": "application", "duration_ms": 420}
+    ],
+    "cinematic_reveal": [
+      {"type": "sliding_blocks", "duration_ms": 1100, "blocks": 12, "stagger": 0.05, "easing": "out_expo", "colour": "alert"},
+      {"type": "scan_line", "duration_ms": 700, "delay_ms": 900, "trail": 120, "colour": "alert", "sweep_only": true}
+    ],
+    "code_editor": [
+      {"type": "segment_reveal", "duration_ms": 520, "segment": 8, "easing": "steps8"}
+    ],
+    "app_closed": [
+      {"type": "fade", "target": "application", "duration_ms": 350}
+    ],
+    "network_up": [
+      {"type": "horizontal_wipe", "target": "network", "duration_ms": 500}
+    ],
+    "network_down": [
+      {"type": "sliding_blocks", "target": "network", "duration_ms": 500, "blocks": 4, "colour": "alert"}
+    ],
+    "warning": [
+      {"type": "sliding_blocks", "target": "alert", "duration_ms": 450, "blocks": 3, "colour": "alert"}
+    ],
+    "critical": [
+      {"type": "fade", "duration_ms": 600, "colour": "critical", "flash": true},
+      {"type": "sliding_blocks", "target": "alert", "duration_ms": 450, "blocks": 3, "colour": "critical"}
+    ]
+  },
+  "rules": [
+    {"event": "SYSTEM_START", "profile": "boot"},
+    {"event": "SYSTEM_SHUTDOWN", "profile": "shutdown"},
+    {"event": "APP_LAUNCHED", "match": {"app": "cyberpunk*"}, "profile": "cinematic_reveal"},
+    {"event": "APP_LAUNCHED", "match": {"app": "code*"}, "profile": "code_editor"},
+    {"event": "APP_LAUNCHED", "profile": "app_default"},
+    {"event": "APP_CLOSED", "profile": "app_closed"},
+    {"event": "NETWORK_CONNECTED", "profile": "network_up"},
+    {"event": "NETWORK_DISCONNECTED", "profile": "network_down"},
+    {"event": "LOW_FAN_SPEED", "profile": "warning"},
+    {"event": "HIGH_TEMP", "profile": "critical"}
+  ]
+}

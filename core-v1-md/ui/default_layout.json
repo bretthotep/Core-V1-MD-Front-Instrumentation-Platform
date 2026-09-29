@@ -1,0 +1,14 @@
+{
+  "rotation_interval_s": 6.0,
+  "widgets": [
+    {"kind": "clock", "pinned": true},
+    {"kind": "alert", "pinned": true, "size": "collapsed"},
+    {"kind": "application"},
+    {"kind": "cpu"},
+    {"kind": "gpu"},
+    {"kind": "ram", "size": "collapsed"},
+    {"kind": "network", "rotating": true},
+    {"kind": "system", "rotating": true},
+    {"kind": "audio_visualiser", "size": "expanded", "mode": "sony_el_bars"}
+  ]
+}
