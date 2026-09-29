@@ -67,6 +67,7 @@ class FrontPanel:
         self.themes = themes or ThemeManager()
         self.clock = clock
         self.wall_clock = wall_clock
+        self.perf_clock: Callable[[], float] = time.perf_counter  # render timing for the debug overlay
         self.telemetry_interval_s = telemetry_interval_s
 
         layout = layout or load_layout()
@@ -147,11 +148,11 @@ class FrontPanel:
         self.manager.tick(now, dt)
         self.engine.tick(dt * 1000.0)
 
-        started = time.perf_counter()
+        started = self.perf_clock()
         self.debug_info.fps = self._fps
         self.debug_info.animations = len(self.engine.active)
         frame = self.compositor.render(self.display.size, self.hub.snapshot, now, self.wall_clock(), self.debug_info)
-        self.debug_info.frame_ms = (time.perf_counter() - started) * 1000.0
+        self.debug_info.frame_ms = (self.perf_clock() - started) * 1000.0
         self.display.present(frame)
         return frame
 

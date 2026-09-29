@@ -4,7 +4,8 @@
 Thermaltake Core V1 gaming/development PC.
 
 The project lives in [`core-v1-md/`](core-v1-md/). Start with its
-[README](core-v1-md/README.md):
+[README](core-v1-md/README.md). The UI designs are in the
+[proof-of-concept gallery](core-v1-md/docs/images/poc/README.md). To run the simulator:
 
 ```powershell
 cd core-v1-md

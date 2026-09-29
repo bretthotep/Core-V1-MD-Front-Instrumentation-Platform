@@ -53,9 +53,12 @@ jobs:
       - name: Headless render
         run: python -m simulator --headless --frames 180 --launch Cyberpunk2077.exe --screenshot render/core-v1-md-${{ matrix.os }}.png
 
+      - name: Render UI proof-of-concept gallery
+        run: python -m simulator.pocs --out render/poc
+
       - name: Upload render
         uses: actions/upload-artifact@v4
         with:
           name: render-${{ matrix.os }}
-          path: core-v1-md/render/*.png
+          path: core-v1-md/render/
           if-no-files-found: error

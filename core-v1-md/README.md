@@ -19,6 +19,7 @@ simulator can later be swapped for the physical panel without touching widget co
 ## Contents
 
 - [Project vision](#project-vision)
+- [UI proof-of-concepts](#ui-proof-of-concepts)
 - [Quick start](#quick-start)
 - [Simulator controls](#simulator-controls)
 - [Architecture](#architecture)
@@ -52,6 +53,20 @@ they matter. Core V1-MD follows the same idea:
 - **Quiet by default, loud when it matters.** Amber and red appear only for alerts.
 - **Physically invisible to airflow.** The final hardware adds a thin strip to the fascia
   and nothing inside the 200 mm intake path.
+
+## UI proof-of-concepts
+
+Test designs rendered by the simulator itself (240 × 1000, seeded mock data). The full set of
+16 scenes and a contact sheet are in [`docs/images/poc/`](docs/images/poc/README.md). To
+regenerate them after a design change, run `python -m simulator.pocs`.
+
+<p>
+  <img src="docs/images/poc/01-idle.png" width="160" alt="Idle">
+  <img src="docs/images/poc/03-launch-cyberpunk.png" width="160" alt="Cyberpunk launch reveal">
+  <img src="docs/images/poc/06-high-temp.png" width="160" alt="Critical high temperature">
+  <img src="docs/images/poc/09-cpu-expanded.png" width="160" alt="CPU expanded">
+  <img src="docs/images/poc/12-theme-es-mono.png" width="160" alt="Sony ES Mono theme">
+</p>
 
 ## Quick start
 
