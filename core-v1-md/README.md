@@ -72,6 +72,8 @@ python -m simulator --debug                     # start with the debug overlay (
 python -m simulator --theme sony_es_mono        # start with another theme
 python -m simulator --width 180 --height 760    # prototype a different panel size
 python -m simulator --layout my_layout.json     # custom widget layout
+python -m simulator --telemetry system          # live CPU / RAM / network from this PC
+python -m simulator --thresholds telemetry/thresholds.json   # custom alert thresholds
 
 # Headless: render N frames off-screen and save the last one (CI / design reviews)
 python -m simulator --headless --frames 180 --launch Cyberpunk2077.exe --screenshot out.png
@@ -117,7 +119,7 @@ core-v1-md/
 ├── themes/        Theme engine + theme JSON files (Sony MiniDisc, Sony ES Mono)
 ├── widgets/       Independent instruments + EL drawing primitives
 ├── simulator/     Windows simulator window, keyboard mapping, headless mode
-├── telemetry/     Provider interfaces, mock provider, audio sources, telemetry hub
+├── telemetry/     Provider interfaces, mock + live system providers, audio sources, hub, thresholds
 ├── display/       DisplayDevice abstraction: SimulatorDisplay, OffscreenDisplay, FutureOledDisplay
 ├── animations/    Animation engine, animation types, event → animation profiles
 ├── ui/            Widget manager (focus/pin/rotate), layout, compositor, FrontPanel core
@@ -247,13 +249,24 @@ and inherit duration, easing and accent colour from the theme when unspecified.
 
 Widgets never read sensors. `TelemetryProvider.poll()` returns a partial, immutable
 `TelemetrySnapshot`; the `TelemetryHub` merges all providers (later ones win), attaches the
-latest `AudioFrame`, and derives events. Only mock data exists today:
+latest `AudioFrame`, and derives events. Providers available today:
 
 - `MockTelemetryProvider` – deterministic, smooth random walks with scenario injection
+- `SystemTelemetryProvider` – live data via `psutil` (Windows, Linux, macOS): CPU total and
+  per-core load, clock, package temperature where the OS exposes it, memory, the busiest
+  physical network adapter (throughput, link state, IPv4), uptime and fans where available.
+  Enable with `--telemetry system`; pin an adapter with `--adapter "Ethernet"`
+- `SectionFilter` – wraps a provider and exposes only chosen sections. In `system` mode the
+  mock supplies *only* the application section (so the launch keys still work); the GPU
+  shows `--` until a real GPU provider exists
 - `MockAudioSource` – synthetic beat/bass/shimmer spectrum and waveform
 
-Planned providers: **LibreHardwareMonitor**, **HWiNFO** shared memory, **Windows APIs**
-(PDH, WMI, foreground window), **network adapters**, and **WASAPI loopback** audio. Each
+Alert thresholds (`HIGH_TEMP`, with hysteresis, and `LOW_FAN_SPEED`) come from
+`telemetry/thresholds.json` or any file passed with `--thresholds`. Unknown keys,
+non-numeric values, and a clear point above the trigger point are all rejected.
+
+Planned providers: **LibreHardwareMonitor** (GPU, fans, power), **HWiNFO** shared memory,
+**Windows APIs** (foreground window / process tracking), and **WASAPI loopback** audio. Each
 only needs to implement `poll()` (or `AudioSource.read_frame()`).
 
 ## Application event framework
@@ -340,7 +353,7 @@ Full detail with acceptance criteria: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 | **0** | Simulator Framework | ✅ Initial implementation |
 | **1** | Widget System | ✅ Initial implementation |
 | **2** | Animation Engine | ✅ Initial implementation |
-| **3** | Telemetry Integration | 🟡 Interfaces + mock data; real providers pending |
+| **3** | Telemetry Integration | 🟡 Interfaces, mock data, live psutil provider, configurable thresholds; GPU/app/audio providers pending |
 | **4** | OLED Display Driver | 🟡 Contract (`FutureOledDisplay`) defined; hardware TBD |
 | **5** | ESP32 Front Panel Controller | 🟡 Protocol drafted |
 | **6** | Physical Core V1 Integration | ⚪ Not started |

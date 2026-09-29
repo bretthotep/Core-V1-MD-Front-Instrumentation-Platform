@@ -103,6 +103,9 @@ class LibreHardwareMonitorProvider(TelemetryProvider):
 
 Register it with `TelemetryHub(bus, [MockTelemetryProvider(), LibreHardwareMonitorProvider()])`.
 Slow providers should sample on their own thread and return cached data from `poll()`.
+`telemetry/system_provider.py` is the reference implementation: it takes the `psutil` module
+as a constructor argument, so tests can inject a fake. Wrap a provider in `SectionFilter` to
+limit it to specific sections (for example, a mock that only covers the gaps).
 
 ### Add an animation type
 

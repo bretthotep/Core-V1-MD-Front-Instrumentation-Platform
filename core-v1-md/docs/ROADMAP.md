@@ -43,12 +43,13 @@ layout is fully navigable with the five control events plus HOME.
 
 - [x] Provider interface, hub merging, threshold events, mock provider
 - [x] Audio source interface and mock source
+- [x] Live system provider (psutil): CPU load/clock/temperature, memory, uptime, fans
+- [x] Network adapter statistics (auto-selected physical adapter, throughput, link state)
+- [x] Configurable thresholds (`telemetry/thresholds.json`, `--thresholds`)
 - [ ] LibreHardwareMonitor provider
 - [ ] HWiNFO shared-memory provider
-- [ ] Windows APIs: PDH counters, foreground window / process tracking
-- [ ] Network adapter statistics
+- [ ] Windows APIs: foreground window / process tracking
 - [ ] WASAPI loopback audio + FFT
-- [ ] Configurable thresholds
 
 **Done when:** the simulator shows live data from the real PC with no widget changes.
 
