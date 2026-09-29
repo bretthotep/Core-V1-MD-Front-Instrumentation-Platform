@@ -79,6 +79,22 @@ python -m simulator --thresholds telemetry/thresholds.json   # custom alert thre
 python -m simulator --headless --frames 180 --launch Cyberpunk2077.exe --screenshot out.png
 ```
 
+### GitHub Codespaces
+
+The repository includes a dev container (`.devcontainer/`) with Python 3.12, the Qt system
+libraries, the requirements, and a lightweight browser desktop for the simulator window.
+
+1. On GitHub: **Code → Codespaces → Create codespace on main** (or on your branch).
+2. Wait for setup to finish. It ends with a headless smoke render and a "ready" message.
+3. Run the tests in the terminal: `python -m pytest` (the terminal opens in `core-v1-md/`).
+4. Open the **Ports** tab, open port **6080** (*Simulator desktop*) in the browser, click
+   **Connect** and enter the password `vscode`.
+5. In the terminal: `python -m simulator`. The window appears on that desktop. Click it to give
+   it keyboard focus for the jog-wheel keys.
+
+In a Codespace, `--telemetry system` reports the cloud VM, not your PC. Use your own
+machine for live data.
+
 ## Simulator controls
 
 The keyboard and mouse stand in for the physical jog wheel. Everything below is translated
