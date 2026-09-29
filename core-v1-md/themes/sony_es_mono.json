@@ -1,0 +1,30 @@
+{
+  "id": "sony_es_mono",
+  "name": "Sony ES Mono",
+  "colours": {
+    "background": "#000000",
+    "primary": "#D8F8FF",
+    "secondary": "#8FA7AD",
+    "alert": "#FFD060",
+    "critical": "#FF4040",
+    "dim": "#3A4548",
+    "grid": "#161B1C"
+  },
+  "fonts": {
+    "display": "DejaVu Sans Mono",
+    "label": "DejaVu Sans"
+  },
+  "metrics": {
+    "padding": 10,
+    "widget_gap": 6,
+    "label_size": 9,
+    "value_size": 22,
+    "segment_gap": 2,
+    "unlit_alpha": 0.10
+  },
+  "animation": {
+    "default_duration_ms": 600,
+    "easing": "in_out_sine",
+    "accent": "secondary"
+  }
+}

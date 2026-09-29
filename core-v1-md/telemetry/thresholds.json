@@ -1,0 +1,6 @@
+{
+  "$comment": "Alert thresholds. Load with: python -m simulator --thresholds telemetry/thresholds.json",
+  "high_temp_c": 85.0,
+  "high_temp_clear_c": 80.0,
+  "low_fan_rpm": 300.0
+}
