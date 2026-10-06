@@ -26,6 +26,18 @@ Status terms: **IMPLEMENTED** = present in host software; **PROTOTYPE** = exerci
 | REQ-SIM-001 | Simulator shall represent the target strip and permit alternate dimensions. | **IMPLEMENTED** — 240 × 1000 default and size options. | Headless renders and tests cover target and arbitrary resolutions. |
 | REQ-SIM-002 | Simulator shall model update type, latency, refresh rate, loss, disconnection/reconnection, brightness, and input events. | **PROTOTYPE** — `SimulatedFrameTransport` models frame/region updates, latency, refresh limits, deterministic drops, reconnect, brightness, and raw input in memory. It is not yet exposed as interactive simulator controls. | Deterministic fake-transport tests reproduce faults and verify full resynchronization without hardware. |
 | REQ-REC-001 | Host shall detect endpoint loss, reconnect, renegotiate capabilities, and force a full-frame resynchronization before resuming dirty updates. | **DESIGNED** — reconnect state flow in `DISPLAY_PROTOCOL.md`. | Fake transport disconnect/reconnect tests; physical USB recovery remains acceptance testing. |
+| REQ-UI-003 | Each visible fan shall have a consistent vector fan icon, stable name/identity, and adjacent measured speed with explicit RPM units; unavailable, stale, and stalled readings shall be distinct. | Icon/name/RPM rendering is **PROTOTYPE**; stale-state indication is **DESIGNED**. | Render zero, missing, long-name, and multiple-fan cases at supported sizes/themes; no overlap. Collapsed/limited views identify omitted fans rather than implying all are shown. |
+| REQ-INPUT-003 | Dial navigation shall support view paging as well as jogging through visible, actionable elements within a view, with an explicit mode and persistent focus. | **DESIGNED**; current runtime navigates widget slots on a continuous strip, not pages or sub-elements. | Verify view → element → edit transitions, wrapping, back/home, hidden/disabled elements, and focus retention after refresh. |
+| REQ-INPUT-004 | Click shall select a focused control; rotation shall stage increases/decreases or choose an action; a second click shall confirm. Back/long-press shall cancel the draft without a write. | **DESIGNED**; gallery interaction previews are not executable controls. | Verify both directions, bounded increments, cancel, timeout, double-click suppression, confirmation exactly once, and rejection feedback. |
+| REQ-CTRL-001 | Fan controls shall expose only backend-supported modes (automatic curve, duty percentage, or RPM target), separately displaying measured RPM and requested target. Unsupported/read-only fans shall remain visible but non-editable. | **DESIGNED**; no fan-write backend exists. | Stable fan identity and units; min/max/step, minimum safe duty, unavailable control, stopped fan, mode switching, acknowledgment/readback, and failed-write tests. |
+| REQ-MEDIA-001 | Supported media sessions shall expose meaningful jog actions: play/pause, previous/next, volume, and seek only when the session supports them. | **DESIGNED**; audio visualisation exists, media transport does not. | Verify active-session identity, supported action discovery, staged selection/confirmation, volume bounds, seek bounds, no-session/unsupported states, and session changes during editing. |
+| REQ-SET-001 | Desktop app settings and a settings view on the device shall edit one host-owned, versioned settings model with independent switches for view paging, element jogging, fan control, media control, and advanced tuning. | **DESIGNED**; current layout persistence is not a feature-settings implementation. | Changing either surface updates the other; validate persistence/schema migration, defaults, corrupted state, concurrent edits, disconnected device, and reconnect resync. |
+| REQ-SET-002 | Monitoring shall remain available when writes are disabled. Fan/media/tuning writes shall default off; enabling a feature shall not bypass missing capability, permission, or safety gates. Disabling shall cancel drafts and prevent queued writes. | **DESIGNED**. | Exercise each switch on both surfaces, restart, disabled control visibility, revocation during edit/commit, and the continued availability of settings/home. |
+| REQ-TUNE-001 | Voltage and clock adjustments shall be an explicitly opted-in advanced feature, locked unless a supported, authorized backend supplies validated component-specific operating limits and live health data. | **DESIGNED**; backend and validated limits **TBD**. No hardware writes or universal safe voltage values are supplied. | Unknown hardware/limits, missing permissions, stale sensors, and unsupported settings must reject every write; validate voltage/clock coupling against an approved hardware profile. |
+| REQ-TUNE-002 | All hardware writes shall pass host-side capability, settings, limit, health, and concurrency checks at confirmation, not just at draft creation; firmware and widgets shall not bypass that policy. | **DESIGNED**. | Reject non-finite/out-of-range values and excessive steps; test thermal/power/current/cooling interlocks, changed limits, concurrent app/device drafts, duplicate commands, and timeout/disconnect. |
+| REQ-TUNE-003 | Tuning shall use conservative backend-approved increments, show current/requested values and units, require explicit risk acknowledgment and per-change confirmation, and verify acknowledgment plus readback before showing success. | **DESIGNED**. | Test cancel/no write, rejected writes, readback mismatch, instability, and bounded transaction timing; no silent retry or automatic replay after reconnect/reboot. |
+| REQ-TUNE-004 | On unsafe health, failed verification, or instability, abort pending changes, lock further tuning, and attempt a verified backend-supported known-good rollback; show recovery failure and operator/firmware recovery guidance if rollback is unavailable. | **DESIGNED**; recovery support is a hardware acceptance gate. | Fault-injected backend tests plus supervised hardware tests; persist an audit of target, old/requested/readback values, limit-profile identity, and result. Never promise software can prevent all overclocking damage. |
+| REQ-SIM-003 | The gallery shall cover fan presentation, element focus/edit/confirm/cancel, media navigation, app/device settings, disabled/read-only states, and locked tuning; design mockups shall be clearly distinguished from operational screens. | Fan visuals are **PROTOTYPE**; interaction/settings/tuning previews are **DESIGNED**. | Regenerate all existing scenes plus concept previews and contact sheet; screenshots are visual evidence only, not control or hardware acceptance. |
 
 ## Non-functional requirements
 
@@ -64,3 +76,32 @@ Status terms: **IMPLEMENTED** = present in host software; **PROTOTYPE** = exerci
 - **PCB gate:** only after the POC gate; schematic, layout, power, connector, and mechanical reviews are complete.
 - **Core V1 gate:** physical mounting, airflow, thermal behavior, USB reliability, 24/72-hour operation, and OLED static-content behavior are measured. Simulator evidence does not satisfy these gates.
 - Numeric refresh, latency, brightness, power, temperature, and physical-clearance thresholds remain **TBD** pending selected components and measured baselines.
+
+## Dial interaction contract — DESIGNED
+
+The current simulator retains its existing widget focus/size/pin controls. The following
+replaces neither those controls nor the wire protocol until the host interaction controller
+is implemented. The gallery depicts intended states only.
+
+| State | Turn dial | Click | Back / long-press |
+|---|---|---|---|
+| View navigation | Previous/next view when paging is enabled | Enter element navigation | Home |
+| Element navigation | Previous/next visible actionable element | Select editable control or enter its action chooser | Return to view navigation |
+| Edit / action chooser | Stage a bounded value or choose a supported action; no write | Confirm one transaction after revalidation | Discard draft, return to element navigation |
+| Pending confirmation | No additional edits or duplicate submissions | No duplicate write | Request cancellation only if backend supports it; never imply an applied write was undone |
+| Result | Resume navigation after result is acknowledged | Dismiss success/error and return to element | Return to element navigation |
+
+- Press handling must not reinterpret a confirmation as expand/pin or a second media action.
+  Retain size/pin actions through an explicit layout menu outside an edit session.
+- Auto-rotation/page changes pause during selection/edit/pending states. Focus uses stable
+  element identities, not row indices; loss/hiding of the selected element cancels its draft.
+- Drafts display original and requested values, units, bounds and a clear cancel hint.
+  Inactivity before submission, host/device disconnect, capability loss, and settings
+  revocation discard unsubmitted drafts; reconnect never submits them.
+- Display visibility is not authorization. In-flight writes with unknown outcomes require
+  readback/reconciliation, not blind retry. Safety monitoring continues when controls are off.
+- Device settings are host-rendered and entered via the same dial. Without the host the
+  device cannot authorize tuning or claim settings have been saved; resync on reconnect.
+- There are no universally safe voltage/clock limits. Vendor/component-specific validated
+  limits, cooling and recovery capability are prerequisites, not user-overridable warnings.
+  Do not enable tuning merely because a fan slider works.

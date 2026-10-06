@@ -46,6 +46,13 @@ comma-separated fallback lists.
 - **Focus mark** – a 2 px cyan bar on the left edge of the focused widget.
 - **Pin mark** – a small cyan square at the top-right corner of pinned widgets.
 - **Rotation dots** – small dashes at the bottom-right of the rotation slot, one per member.
+- **Fan icon** – restrained vector blades and hub beside each fan's name and measured RPM;
+  never emoji or a substitute for readable units. Requested duty/RPM is a separate field.
+- **Edit state (DESIGNED)** – persistent element outline, current → draft value, units,
+  bounded step hints, and explicit confirm/cancel labels. Pending/result states cannot
+  masquerade as a successfully applied setting.
+- **Locked control (DESIGNED)** – readable reason (disabled, unsupported, stale data,
+  missing validated limits), not just color or a padlock.
 
 ## Motion catalogue
 
@@ -66,7 +73,7 @@ comma-separated fallback lists.
 |---|---|
 | Use amber/red only for real alerts | Colour-code normal values |
 | Keep unused pixels black | Add background textures or gradients |
-| Prefer text + segments | Use icons, emoji or skeuomorphic dials |
+| Prefer text + segments; use a functional vector fan icon with RPM | Use decorative icons, emoji or skeuomorphic dials |
 | Animate state changes | Animate continuously for decoration |
 
 ## Narrow-strip layout examples
@@ -126,7 +133,9 @@ Focused-widget and warning states reserve warm colors for actual thresholds:
 - Use tabular digits and short labels. Values remain legible before optional history or
   secondary readings.
 - Focus is persistent and visible (left marker plus a stronger frame); encoder rotation moves
-  focus, press expands/collapses or selects, and host software interprets gestures.
+  widget focus and press cycles size in the current runtime. The **DESIGNED** view/element/edit
+  interaction uses click to select, turn to stage, click to confirm, and back/long-press to
+  cancel before submission; host software interprets gestures.
 - Scroll rather than compressing every widget below the minimum readable height. Keep status,
   focus, and warning states distinguishable at low brightness.
 - Animation should be event-driven and localized where possible so it supports glanceability
@@ -144,3 +153,11 @@ Focused-widget and warning states reserve warm colors for actual thresholds:
   tuning on selected hardware.
 - **TBD:** panel luminance, viewing distance, pixel pitch, color behavior, and acceptable
   brightness/retention thresholds. Black UI and pixel shifting do not eliminate burn-in.
+
+## Control previews versus working screens
+
+The gallery includes deterministic runtime renders and explicitly labelled **DESIGNED / MOCK**
+control previews. Fan focus, speed drafts, confirmation/cancellation, media choices,
+app/device settings and locked voltage tuning illustrate requirements, not functioning
+backends. They must not suggest that arbitrary voltages are safe or that enabling a switch
+unlocks unsupported hardware. Regenerate the complete gallery after visual changes.

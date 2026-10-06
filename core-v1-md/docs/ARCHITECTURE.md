@@ -40,6 +40,31 @@ service, on a different process, or be unit-tested in isolation.
 Input is asynchronous: an `InputDevice` emits `ControlEvent`s into
 `FrontPanel.handle_control()`, which forwards to `WidgetManager.handle()`.
 
+### Planned interaction and control boundary — DESIGNED
+
+The existing manager handles widget focus, sizing and pinning only. View paging,
+sub-element jogging, select/edit/confirm, media commands, and app/device feature settings
+are specified in [`REQUIREMENTS.md`](REQUIREMENTS.md), not implemented by the gallery.
+
+A future host interaction controller will own view/element/edit/pending/result state and
+stable element identities. Widgets will expose display/action metadata, never call sensor
+or write APIs. Turning in edit mode changes a draft; confirming submits exactly one
+transaction to a separate host control service. Auto-rotation pauses until editing finishes.
+
+Both the desktop settings surface and host-rendered device settings view will use one
+versioned settings store. Control switches default off and are checked again at commit;
+layout persistence remains separate. The ESP32 reports input and displays host pixels,
+not tuning policy or direct PC voltage commands. No new control wire messages are defined
+by this design update.
+
+The control service must discover backend capabilities and permissions, validate live
+health and component-specific limits, serialize writes, verify acknowledgment/readback,
+and audit outcomes. Fan, media and tuning adapters remain planned; missing backend/limits
+means read-only/locked. Disconnect or settings revocation cancels unsubmitted drafts;
+unknown in-flight results require reconciliation, not replay. Tuning additionally requires
+approved increments, explicit confirmation, interlocks and a verified recovery strategy.
+Software cannot guarantee that overclocking causes no damage.
+
 ## Target system and software paths
 
 **Designed target:** Windows owns the application. ESP32-S3 is a USB hardware endpoint, not a

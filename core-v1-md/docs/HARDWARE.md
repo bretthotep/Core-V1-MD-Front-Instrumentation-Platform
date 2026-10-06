@@ -62,6 +62,16 @@ The host protocol design is specified in [`DISPLAY_PROTOCOL.md`](DISPLAY_PROTOCO
 - Optional sensors: reserve suitable GPIO/I²C/ADC resources only after use cases are identified; no sensor is required for the initial display POC.
 - Pin assignments, voltage levels, pull-ups, debounce, connector, cable length, and ESD protection are **TBD**.
 
+### Planned PC control is not endpoint power control
+
+Fan-speed and voltage/clock adjustment requirements in [`REQUIREMENTS.md`](REQUIREMENTS.md)
+refer to authorized **host PC backends**, not GPIO/ADC outputs or the display's power rails.
+No fan controller wiring, motherboard voltage-write interface, or tuning backend is selected.
+The device settings view is rendered by the host and cannot independently authorize writes.
+Unknown component limits, missing fresh health data, or unverified recovery support keep
+advanced tuning locked. Validate fan minimum duty, cooling capacity, thermal/power/current
+limits and recovery on the actual PC before enabling any supported write feature.
+
 ## Core V1 physical constraints
 
 The Thermaltake Core V1 front fascia is in front of a 200 mm intake fan. The display, controller, connector, and cables must not enter the fan's swept path. Existing dimensions and clearances have not been measured for this project.

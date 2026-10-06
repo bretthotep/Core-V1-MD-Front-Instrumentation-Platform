@@ -236,3 +236,27 @@ def draw_sparkline(
 
 def draw_rule(painter: QPainter, x1: float, x2: float, y: float, theme: Theme, role: str = "grid") -> None:
     painter.fillRect(QRectF(x1, y, x2 - x1, 1), colour(theme, role))
+
+
+def draw_fan_icon(painter: QPainter, rect: QRectF, theme: Theme, role: str = "primary") -> None:
+    """Four curved vector blades and a hub; no assets or animation required."""
+    if rect.width() <= 0 or rect.height() <= 0:
+        return
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.translate(rect.center())
+    scale = min(rect.width(), rect.height()) / 20
+    painter.scale(scale, scale)
+    painter.setPen(QPen(colour(theme, role, 0.65), 0.8))
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawEllipse(QRectF(-9, -9, 18, 18))
+    blade = QPainterPath(QPointF(1, -2))
+    blade.cubicTo(8, -9, 10, -2, 5, 1)
+    blade.cubicTo(3, 2, 2, 0, 1, -2)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(colour(theme, role))
+    for _ in range(4):
+        painter.drawPath(blade)
+        painter.rotate(90)
+    painter.drawEllipse(QRectF(-1.7, -1.7, 3.4, 3.4))
+    painter.restore()
