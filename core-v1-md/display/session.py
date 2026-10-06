@@ -11,10 +11,13 @@ from display.protocol import (
     CRC,
     FRAGMENT,
     HEADER,
+    MAX_FRAGMENTS,
     MAX_PACKET_SIZE,
+    MAX_REASSEMBLED_MESSAGE,
     MessageType,
     Packet,
     ProtocolError,
+    REGION,
     encode_region,
     fragment_message,
 )
@@ -132,7 +135,7 @@ class DisplaySession:
         raise ProtocolError(f"unexpected packet in session state {self.state.name}")
 
     def send_full_frame(self, payload: bytes, frame_id: int) -> tuple[Packet, ...]:
-        if self.state is not SessionState.CONFIGURED:
+        if self.state not in (SessionState.CONFIGURED, SessionState.READY) or self._pending:
             raise ProtocolError("full-frame synchronization requires a configured session")
         region = FrameRegion(
             DirtyRegion(0, 0, self.width, self.height),
@@ -173,6 +176,17 @@ class DisplaySession:
         minimum_packet_size = HEADER.size + CRC.size + FRAGMENT.size + 1
         if not minimum_packet_size <= capabilities.maximum_packet_size <= MAX_PACKET_SIZE:
             return self._fail("endpoint maximum packet size is unsupported")
+        full_frame_size = REGION.size + self.width * self.height * PixelFormat.RGB565_BE.bytes_per_pixel
+        max_payload = capabilities.maximum_packet_size - HEADER.size - CRC.size
+        if full_frame_size <= max_payload:
+            fragment_count = 1
+        else:
+            if full_frame_size > MAX_REASSEMBLED_MESSAGE:
+                return self._fail("endpoint packet size cannot carry the requested full frame")
+            fragment_payload = max_payload - FRAGMENT.size
+            fragment_count = (full_frame_size + fragment_payload - 1) // fragment_payload
+        if fragment_count > MAX_FRAGMENTS:
+            return self._fail("endpoint packet size cannot carry the requested full frame")
 
         self.capabilities = capabilities
         payload = CONFIGURE_PAYLOAD.pack(

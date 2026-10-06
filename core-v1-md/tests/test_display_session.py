@@ -63,6 +63,20 @@ def test_negotiation_rejects_incompatible_endpoint(endpoint_capabilities, messag
     assert session.state is SessionState.FAILED
 
 
+def test_negotiation_rejects_packet_limit_that_cannot_carry_full_frame():
+    session = DisplaySession(240, 1000)
+    session.begin()
+    with pytest.raises(ProtocolError, match="cannot carry the requested full frame"):
+        session.receive(
+            Packet(
+                MessageType.CAPABILITIES,
+                1,
+                payload=encode_capabilities(capabilities(width=240, height=1000)),
+            )
+        )
+    assert session.state is SessionState.FAILED
+
+
 def test_full_frame_ack_gates_dirty_updates_and_busy_can_be_retried():
     session = establish_configured_session()
     payload = bytes(range(24))
@@ -80,9 +94,19 @@ def test_full_frame_ack_gates_dirty_updates_and_busy_can_be_retried():
     session.receive(ack(logical_sequence, AckStatus.ACCEPTED))
     assert session.state is SessionState.READY
 
+    refreshed_packets = session.send_full_frame(payload, frame_id=11)
+    assert session.state is SessionState.WAITING_FOR_FULL_FRAME_ACK
+    with pytest.raises(ProtocolError, match="full-frame synchronization"):
+        session.send_dirty_region(
+            FrameRegion(DirtyRegion(0, 0, 1, 1), PixelFormat.RGB565_BE, b"\x00\x00", 12)
+        )
+    session.receive(ack(refreshed_packets[0].sequence, AckStatus.ACCEPTED))
+
     dirty = FrameRegion(DirtyRegion(1, 1, 1, 1), PixelFormat.RGB565_BE, b"\x12\x34", 11)
     dirty_packets = session.send_dirty_region(dirty)
     assert decode_packet(encode_packet(dirty_packets[0])).message_type is MessageType.DIRTY_REGION
+    with pytest.raises(ProtocolError, match="full-frame synchronization"):
+        session.send_full_frame(payload, frame_id=12)
     session.receive(ack(dirty_packets[0].sequence, AckStatus.DUPLICATE))
     assert session.state is SessionState.READY
     with pytest.raises(ProtocolError, match="no outstanding"):
