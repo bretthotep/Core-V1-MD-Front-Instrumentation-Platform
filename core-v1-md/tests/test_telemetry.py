@@ -45,6 +45,59 @@ def test_hub_survives_failing_provider():
     assert hub.poll(1.0).cpu is not None
 
 
+def test_hub_isolates_provider_and_audio_lifecycle_failures():
+    calls = []
+
+    class BrokenLifecycle(TelemetryProvider):
+        name = "broken"
+
+        def start(self):
+            calls.append("broken start")
+            raise OSError("cannot start")
+
+        def stop(self):
+            calls.append("broken stop")
+            raise OSError("cannot stop")
+
+        def poll(self, now):
+            return TelemetrySnapshot(timestamp=now)
+
+    class HealthyLifecycle(TelemetryProvider):
+        name = "healthy"
+
+        def start(self):
+            calls.append("healthy start")
+
+        def stop(self):
+            calls.append("healthy stop")
+
+        def poll(self, now):
+            return TelemetrySnapshot(timestamp=now)
+
+    class BrokenAudio(MockAudioSource):
+        def start(self):
+            calls.append("audio start")
+            raise OSError("cannot start audio")
+
+        def stop(self):
+            calls.append("audio stop")
+            raise OSError("cannot stop audio")
+
+    hub = TelemetryHub(EventBus(), [BrokenLifecycle(), HealthyLifecycle()], audio=BrokenAudio())
+
+    hub.start()
+    hub.stop()
+
+    assert calls == [
+        "broken start",
+        "healthy start",
+        "audio start",
+        "broken stop",
+        "healthy stop",
+        "audio stop",
+    ]
+
+
 def test_hub_derives_app_and_network_events():
     bus = EventBus()
     mock = MockTelemetryProvider()
