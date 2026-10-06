@@ -22,7 +22,7 @@ The requirements, protocol/performance assumptions, and host-side frame-region a
 | EA-004 | HIGH | The physical architecture specifies a USB-connected ESP32-S3 endpoint, but the display module/interface, board/module, memory, power, cabling, mounting, and clearances are not selected or physically validated. |
 | EA-005 | MEDIUM | The host prototype defines typed `FrameRegion` data and a region/protocol encoding boundary; interoperability and production transport behavior remain unvalidated. |
 | EA-006 | MEDIUM | `SimulatedFrameTransport` exercises dirty regions, latency, dropped updates, disconnect/reconnect, brightness, and input in memory, but does not emulate a real endpoint or physical link. |
-| EA-007 | MEDIUM | Telemetry polling is fault-tolerant during `poll()`, but lifecycle calls (`start()`/`stop()`) are not isolated per provider. The live `psutil` provider is polled by the frame-loop caller; providers requiring slow I/O must implement their own sampling/cache as the interface documentation requires. |
+| EA-007 | MEDIUM | Telemetry polling and lifecycle calls (`start()`/`stop()`) isolate provider failures so other sources can continue. The live `psutil` provider is polled by the frame-loop caller; providers requiring slow I/O must implement their own sampling/cache as the interface documentation requires. |
 | EA-008 | MEDIUM | Automated tests cover host dirty regions, protocol framing/corruption/fragmentation, and simulated transport behavior; physical display reconnection and telemetry staleness remain untested. |
 | EA-009 | LOW | Status wording is inconsistent. README and roadmap call physical output and ESP32 support “future”/draft, but mark parts of the contracts or parser complete; several documents do not consistently label implemented, prototype, designed, planned, and TBD work. |
 | EA-010 | LOW | Performance, power, OLED lifetime/burn-in, airflow, latency, frame-rate, and physical dimensions are not measured. Existing notes include a sub-watt power target and zero/near-zero airflow impact without supporting measurements. |
@@ -61,7 +61,7 @@ The requirements, protocol/performance assumptions, and host-side frame-region a
 - The host-side protocol prototype defines payload limits, region bounds, sequencing, fragmentation/reassembly, recovery, and acknowledgements; interoperability with an endpoint and physical transport remains unvalidated.
 - `FutureOledDisplay` applies pixel shifting by copying a whole image; its interaction with partial updates needs validation before hardware use.
 - The host-side update prototype avoids retransmitting unchanged regions, but animation invalidation and performance gains need validation on representative workloads.
-- Error handling around telemetry polling is stronger than lifecycle handling; a provider raising from `start()` can interrupt startup before the display is usable.
+- Telemetry lifecycle failures are logged and isolated per source; a source that fails to start may still fail when polled, which remains isolated by the hub.
 - Hardware requirements such as power, heat, physical fit, connector selection, and airflow cannot be completed by simulator tests.
 
 ## Recommended incremental sequence

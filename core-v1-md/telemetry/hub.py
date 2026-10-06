@@ -89,15 +89,27 @@ class TelemetryHub:
 
     def start(self) -> None:
         for provider in self.providers:
-            provider.start()
+            try:
+                provider.start()
+            except Exception:
+                log.exception("Telemetry provider %s failed to start", provider.name)
         if self.audio:
-            self.audio.start()
+            try:
+                self.audio.start()
+            except Exception:
+                log.exception("Audio source failed to start")
 
     def stop(self) -> None:
         for provider in self.providers:
-            provider.stop()
+            try:
+                provider.stop()
+            except Exception:
+                log.exception("Telemetry provider %s failed to stop", provider.name)
         if self.audio:
-            self.audio.stop()
+            try:
+                self.audio.stop()
+            except Exception:
+                log.exception("Audio source failed to stop")
 
     def poll(self, now: float) -> TelemetrySnapshot:
         merged = TelemetrySnapshot(timestamp=now)
