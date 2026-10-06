@@ -15,7 +15,7 @@ PROTOCOL_VERSION = 1
 MAX_PACKET_SIZE = 1024
 HEADER = struct.Struct(">2sBBHIIH")
 CRC = struct.Struct(">H")
-FRAGMENT = struct.Struct(">HHII")
+FRAGMENT = struct.Struct(">IHHII")
 REGION = struct.Struct(">HHHHBBH")
 FLAG_FRAGMENT = 0x0001
 MAX_REASSEMBLED_MESSAGE = 4 * 1024 * 1024
@@ -137,13 +137,18 @@ class PacketStreamDecoder:
             payload_size = HEADER.unpack_from(self._buffer)[-1]
             packet_size = HEADER.size + payload_size + CRC.size
             if packet_size > MAX_PACKET_SIZE:
-                del self._buffer[: len(MAGIC)]
-                raise ProtocolError("packet exceeds maximum size")
+                del self._buffer[0]
+                continue
             if len(self._buffer) < packet_size:
                 break
             raw = bytes(self._buffer[:packet_size])
+            try:
+                packet = decode_packet(raw)
+            except ProtocolError:
+                del self._buffer[0]
+                continue
             del self._buffer[:packet_size]
-            packets.append(decode_packet(raw))
+            packets.append(packet)
         return tuple(packets)
 
 
@@ -179,11 +184,12 @@ def fragment_message(
     count = (len(payload) + chunk_size - 1) // chunk_size
     if count > MAX_FRAGMENTS:
         raise ProtocolError("logical message requires too many fragments")
+    message_sequence = sequence & 0xFFFFFFFF
     packets = []
     for index in range(count):
         offset = index * chunk_size
         chunk = payload[offset : offset + chunk_size]
-        descriptor = FRAGMENT.pack(index, count, len(payload), offset)
+        descriptor = FRAGMENT.pack(message_sequence, index, count, len(payload), offset)
         packets.append(
             Packet(
                 message_type,
@@ -200,6 +206,7 @@ def fragment_message(
 class ReassembledMessage:
     message_type: MessageType
     frame_id: int
+    sequence: int
     payload: bytes
 
 
@@ -207,6 +214,7 @@ class ReassembledMessage:
 class _Assembly:
     message_type: MessageType
     frame_id: int
+    sequence: int
     fragment_count: int
     total_size: int
     updated_at: float
@@ -221,7 +229,7 @@ class FragmentReassembler:
             raise ValueError("timeout_s and max_inflight must be positive")
         self.timeout_s = timeout_s
         self.max_inflight = max_inflight
-        self._assemblies: dict[tuple[MessageType, int], _Assembly] = {}
+        self._assemblies: dict[tuple[MessageType, int, int], _Assembly] = {}
 
     def add(self, packet: Packet, now: float | None = None) -> ReassembledMessage | None:
         now = time.monotonic() if now is None else now
@@ -234,13 +242,13 @@ class FragmentReassembler:
         if not packet.flags & FLAG_FRAGMENT:
             if len(packet.payload) > MAX_PACKET_SIZE - HEADER.size - CRC.size:
                 raise ProtocolError("packet exceeds maximum size")
-            return ReassembledMessage(packet.message_type, packet.frame_id, packet.payload)
+            return ReassembledMessage(packet.message_type, packet.frame_id, packet.sequence, packet.payload)
         if packet.message_type not in (MessageType.FULL_FRAME, MessageType.DIRTY_REGION):
             raise ProtocolError("only pixel-update messages may be fragmented")
         if len(packet.payload) <= FRAGMENT.size:
             raise ProtocolError("fragment has no data")
 
-        index, count, total_size, offset = FRAGMENT.unpack_from(packet.payload)
+        message_sequence, index, count, total_size, offset = FRAGMENT.unpack_from(packet.payload)
         chunk = packet.payload[FRAGMENT.size :]
         if (
             count == 0
@@ -252,12 +260,12 @@ class FragmentReassembler:
         ):
             raise ProtocolError("invalid fragment bounds")
 
-        key = (packet.message_type, packet.frame_id)
+        key = (packet.message_type, packet.frame_id, message_sequence)
         assembly = self._assemblies.get(key)
         if assembly is None:
             if len(self._assemblies) >= self.max_inflight:
                 raise ProtocolError("too many fragmented updates in flight")
-            assembly = _Assembly(packet.message_type, packet.frame_id, count, total_size, now)
+            assembly = _Assembly(packet.message_type, packet.frame_id, message_sequence, count, total_size, now)
             self._assemblies[key] = assembly
         elif assembly.fragment_count != count or assembly.total_size != total_size:
             del self._assemblies[key]
@@ -290,4 +298,4 @@ class FragmentReassembler:
         del self._assemblies[key]
         if cursor != assembly.total_size:
             raise ProtocolError("reassembled length does not match declared size")
-        return ReassembledMessage(packet.message_type, packet.frame_id, bytes(output))
+        return ReassembledMessage(packet.message_type, packet.frame_id, assembly.sequence, bytes(output))

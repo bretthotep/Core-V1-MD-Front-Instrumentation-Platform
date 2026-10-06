@@ -8,22 +8,22 @@
 
 The repository is a functional Python/PySide6 simulator and instrumentation UI prototype. The host-side application is already separated into telemetry, widgets, composition, display sinks, and raw input handling. Mock telemetry, a live `psutil` provider, deterministic UI scenes, and an automated test suite exist.
 
-The hardware-facing path is not yet a production display path: `FutureOledDisplay` converts and submits complete RGB565 frames to a transport whose default implementation only records data. The ESP32 module parses a small newline-delimited input-event draft; it does not negotiate capabilities or transport display data. The 240 × 1000 target is provisional. No ESP32-S3 firmware, selected panel, physical measurements, or custom PCB are present.
+The hardware-facing path is not yet a production display path: `FutureOledDisplay` supports optional RGB565 dirty-region dispatch, and host-side framing/reassembly and an in-memory simulated transport are software prototypes. The default transport only records full frames. The ESP32 module parses a small newline-delimited input-event draft; it does not negotiate capabilities or transport display data. The 240 × 1000 target is provisional. No ESP32-S3 firmware, selected panel, physical measurements, or custom PCB are present.
 
-The safest next steps are to document requirements and explicit protocol/performance assumptions, then add independently tested host-side frame-region and protocol components. Preserve the current simulator and `FrontPanel` contract while those components develop.
+The requirements, protocol/performance assumptions, and host-side frame-region and protocol prototypes are now present. The next steps are to validate them against an endpoint implementation and hardware, while preserving the current simulator and `FrontPanel` contract.
 
 ## Findings
 
 | ID | Severity | Finding |
 |---|---|---|
-| EA-001 | HIGH | The OLED output path only sends full frames. `FutureOledDisplay.present()` converts all pixels to RGB565 and calls `FrameTransport.send_frame()`; there is no region model, invalidation, or production transport. |
+| EA-001 | MEDIUM | `FutureOledDisplay` supports dirty-region dispatch when a transport opts in, but the default transport records full frames and no production USB/display transport exists. |
 | EA-002 | HIGH | The target's uncompressed full-frame rate has not been budgeted. At 240 × 1000 and 16 bits/pixel, a frame is 480,000 bytes; high refresh rates can impose substantial link and display-interface throughput. Current code has no bandwidth guard or measurements. |
 | EA-003 | HIGH | The ESP32 integration is only an input parser. `hardware/esp32.py` accepts ASCII `ROT`, `BTN`, `HOME`, and `HELLO` lines; it has no binary framing, capability negotiation, display updates, acknowledgements, reconnect state, or firmware. |
 | EA-004 | HIGH | The physical architecture is unresolved. Display module/interface, ESP32-S3 board/module, memory, power, cabling, mounting, and clearances are not validated. Existing hardware notes still allow direct-PC display paths and generic ESP32-class controllers. |
-| EA-005 | MEDIUM | Display responsibilities are only partly explicit. `DisplayDevice` consumes `QImage`, while `FrameTransport` accepts unstructured width/height/bytes. Conversion, transport encoding, update identity, and partial-region boundaries have no shared typed representation. |
-| EA-006 | MEDIUM | The simulator does not emulate display-link faults or partial updates. It supports arbitrary resolution and headless output, but no configurable transport latency, frame drops, disconnect/reconnect, or brightness/input endpoint simulation. |
+| EA-005 | MEDIUM | The host prototype defines typed `FrameRegion` data and a region/protocol encoding boundary; interoperability and production transport behavior remain unvalidated. |
+| EA-006 | MEDIUM | `SimulatedFrameTransport` exercises dirty regions, latency, dropped updates, disconnect/reconnect, brightness, and input in memory, but does not emulate a real endpoint or physical link. |
 | EA-007 | MEDIUM | Telemetry polling is fault-tolerant during `poll()`, but lifecycle calls (`start()`/`stop()`) are not isolated per provider. The live `psutil` provider is polled by the frame-loop caller; providers requiring slow I/O must implement their own sampling/cache as the interface documentation requires. |
-| EA-008 | MEDIUM | Automated coverage is useful for UI, telemetry, animations, and the existing RGB565/full-frame display contract, but there are no tests for dirty regions, a versioned display protocol, packet corruption/fragmentation, display reconnection, or telemetry staleness. |
+| EA-008 | MEDIUM | Automated tests cover host dirty regions, protocol framing/corruption/fragmentation, and simulated transport behavior; physical display reconnection and telemetry staleness remain untested. |
 | EA-009 | LOW | Status wording is inconsistent. README and roadmap call physical output and ESP32 support “future”/draft, but mark parts of the contracts or parser complete; several documents do not consistently label implemented, prototype, designed, planned, and TBD work. |
 | EA-010 | LOW | Performance, power, OLED lifetime/burn-in, airflow, latency, frame-rate, and physical dimensions are not measured. Existing notes include a sub-watt power target and zero/near-zero airflow impact without supporting measurements. |
 
@@ -34,7 +34,7 @@ The safest next steps are to document requirements and explicit protocol/perform
 - `ui/panel.py` owns the frame loop and wires telemetry, event handling, widget state, animation, composition, and display presentation.
 - `ui/compositor.py` produces a `QImage`; widgets consume a `TelemetrySnapshot` through their render context rather than reading hardware.
 - `display/device.py` provides the `DisplayDevice` abstraction with offscreen and simulator sinks.
-- `display/oled_display.py` provides a prototype RGB565 conversion, a full-frame-only `FrameTransport`, a recording `NullTransport`, brightness forwarding, and optional pixel shifting.
+- `display/oled_display.py` provides prototype RGB565 conversion, optional dirty-region dispatch, a recording `NullTransport`, brightness forwarding, and optional pixel shifting.
 - `telemetry/` provides immutable snapshot models, a provider interface, a mock provider, audio mocks, and a live `psutil` provider. The hub catches provider polling exceptions and merges successful sections.
 - `hardware/` provides jog/press interpretation and a line-oriented host parser for the draft ESP32 input messages.
 - `simulator/` supports the 240 × 1000 default geometry, alternate dimensions, mock/system telemetry modes, input mapping, and deterministic headless rendering.
@@ -68,7 +68,7 @@ The safest next steps are to document requirements and explicit protocol/perform
 
 1. **M0 — Audit:** Preserve this assessment as the baseline; make no broad refactor before requirements and risks are captured.
 2. **M1–M2 — Requirements and architecture:** Specify unique requirements, distinguish state/status, document the host-authoritative ESP32-S3 endpoint, and align README, architecture, hardware, design, and roadmap.
-3. **M3–M5 — Host display boundary:** Keep `DisplayDevice` and `FrontPanel` behavior; introduce only the frame/region and protocol abstractions needed for full and partial updates, then cover them with deterministic tests.
+3. **M3–M5 — Host display boundary:** Host-side frame/region and protocol prototypes are implemented and tested; validate their contracts against a real endpoint while preserving `DisplayDevice` and `FrontPanel` behavior.
 4. **Simulator:** Use fake transports/devices to exercise update selection, latency, loss, disconnect/reconnect, brightness, and input without hardware.
 5. **M6–M9 — Hardware proof of concept and measurement:** Select a development board and display module, implement the endpoint, and measure throughput, latency, memory, CPU, and thermal behavior before optimizing.
 6. **M10+ — Physical integration:** Design a custom PCB only after the board/display/protocol POC works; then validate mounting, airflow, power, long-duration operation, and OLED aging mitigations.

@@ -74,6 +74,15 @@ def test_stream_decoder_retains_partial_magic_prefix():
     assert decoder.feed(encoded[1:]) == (packet(),)
 
 
+def test_stream_decoder_resynchronizes_after_corrupt_candidate():
+    valid = encode_packet(packet())
+    candidate_header = HEADER.pack(b"\xC1\x4D", 1, int(MessageType.HELLO), 0, 0, 0, len(valid))
+    checksum = binascii.crc_hqx(candidate_header[2:] + valid, 0xFFFF) ^ 1
+    corrupt_candidate = candidate_header + valid + CRC.pack(checksum)
+
+    assert PacketStreamDecoder().feed(corrupt_candidate) == (packet(),)
+
+
 def test_region_descriptor_contains_coordinates_format_and_row_length():
     image = QImage(3, 2, QImage.Format.Format_RGB32)
     image.fill(QColor("#000000"))
@@ -99,12 +108,33 @@ def test_fragmented_frame_reassembles_out_of_order_and_ignores_exact_duplicate()
     assert result is not None
     assert result.message_type is MessageType.DIRTY_REGION
     assert result.frame_id == 4
+    assert result.sequence == 100
     assert result.payload == payload
+
+
+def test_fragmented_regions_with_the_same_frame_id_reassemble_independently():
+    payload_a = b"a" * 3000
+    payload_b = b"b" * 3000
+    fragments_a = fragment_message(MessageType.DIRTY_REGION, 0xFFFFFFFF, 4, payload_a)
+    fragments_b = fragment_message(MessageType.DIRTY_REGION, 200, 4, payload_b)
+    reassembler = FragmentReassembler()
+
+    completed = []
+    for fragment_a, fragment_b in zip(fragments_a, fragments_b, strict=True):
+        for fragment in (fragment_a, fragment_b):
+            result = reassembler.add(fragment)
+            if result is not None:
+                completed.append(result)
+
+    assert {(message.sequence, message.payload) for message in completed} == {
+        (0xFFFFFFFF, payload_a),
+        (200, payload_b),
+    }
 
 
 def test_fragment_reassembler_rejects_overlap_and_expires_incomplete_updates():
     def fragment(index, offset, data):
-        descriptor = FRAGMENT.pack(index, 2, 6, offset)
+        descriptor = FRAGMENT.pack(0, index, 2, 6, offset)
         return Packet(
             MessageType.FULL_FRAME,
             sequence=index,

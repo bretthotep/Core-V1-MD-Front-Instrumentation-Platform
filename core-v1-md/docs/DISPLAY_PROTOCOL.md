@@ -18,7 +18,7 @@ All multibyte integer fields are unsigned big-endian network order. A transport 
 | 2 | 1 | Version | Selects packet/payload interpretation; initial value `1`. Unknown versions are rejected. |
 | 3 | 1 | Message type | Identifies capability, configuration, pixel update, control, input, status, or error payload. |
 | 4 | 2 | Flags | `0x0001` marks a fragment; all other bits are reserved and rejected in version 1. |
-| 6 | 4 | Sequence | Monotonically increasing sender message identifier; correlates responses and detects duplicate/out-of-order commands. Wrap is modulo 2³². |
+| 6 | 4 | Sequence | Monotonically increasing packet sequence; wrap is modulo 2³². For fragmented updates, the descriptor repeats the first fragment's sequence as the logical update ID used for ACK correlation. |
 | 10 | 4 | Frame/update ID | Groups all packet fragments for one rendered update. Zero for messages unrelated to a frame. |
 | 14 | 2 | Payload length | Exact number of payload bytes; receiver validates before allocation/dispatch. |
 | 16 | variable | Payload | Message-type-specific data. |
@@ -82,16 +82,16 @@ Unfragmented `FULL_FRAME` and `DIRTY_REGION` begin with this 12-byte region desc
 | 2 | Bytes per pixel row | Must equal `width × bytes_per_pixel` in version 1 (no implicit row padding). |
 | remaining | Pixel bytes | Exact length must equal `row_bytes × height` when unfragmented. |
 
-For fragmentation, each packet's payload starts with a 12-byte fragment descriptor: 2-byte fragment index, 2-byte fragment count, 4-byte total message bytes, and 4-byte byte offset. Bytes after the descriptor are a contiguous slice of the logical message (the region descriptor plus pixel bytes). The packet's frame/update ID identifies the reassembly set. With the proposed 1024-byte packet limit, a fragment has at most 994 data bytes. Receivers validate count, bounds, consistent metadata, non-overlapping offsets, complete coverage, and a bounded reassembly size before applying a region. Incomplete fragments expire on timeout and never partially update the visible panel.
+For fragmentation, each packet's payload starts with a 16-byte fragment descriptor: 4-byte logical update sequence (the first packet's sequence), 2-byte fragment index, 2-byte fragment count, 4-byte total message bytes, and 4-byte byte offset. Bytes after the descriptor are a contiguous slice of the logical message (the region descriptor plus pixel bytes). The logical update sequence and frame/update ID together identify the reassembly set; the logical update sequence is also retained for ACK correlation. With the proposed 1024-byte packet limit, a fragment has at most 990 data bytes. Receivers validate count, bounds, consistent metadata, non-overlapping offsets, complete coverage, and a bounded reassembly size before applying a region. Incomplete fragments expire on timeout and never partially update the visible panel.
 
 Version 1 encodes packed RGB565 rows with no compression or implicit scaling. Dirty rectangles use coordinates in the negotiated logical display coordinate space. The host prototype bounds a reassembled logical message to 4 MiB, permits at most 8192 fragments and four in-flight assemblies, and expires incomplete sets after a default two seconds. These are software limits, not measured hardware timing/capacity.
 
 ## Acknowledgment, ordering, and duplicate behavior
 
-- Each sender increments its sequence for every message. ACK references that sequence; frame/update ID groups pixel traffic across fragments.
+- Each sender increments its packet sequence for every packet. ACK references the message sequence; for a fragmented update this is the first fragment's sequence, carried in every fragment descriptor. Frame/update ID groups pixel traffic across fragments.
 - Endpoint ACKs accepted/rejected `CONFIGURE`, completed full-frame/dirty-region updates, and `BRIGHTNESS`; it may defer ACK until display transfer completion. Heartbeats and raw input events do not require per-message ACK.
 - The host permits a bounded number of outstanding commands (initial proposal: one display update); exact timeout/window are **TBD** and measured on the selected transport.
-- A duplicate sequence must not apply a pixel update twice. Cache a bounded recent response window and return `duplicate`/the prior result where possible. Sequence gaps alone do not imply a missing display update; update IDs and explicit ACK/timeouts govern recovery.
+- A duplicate logical update sequence must not apply a pixel update twice. Cache a bounded recent response window and return `duplicate`/the prior result where possible. Sequence gaps alone do not imply a missing display update; update IDs and explicit ACK/timeouts govern recovery.
 - Rejection, CRC failure, unsupported capability, malformed dimensions/length, reassembly failure, and endpoint busy conditions return an error or negative ACK where a valid header allows safe correlation. Invalid bytes are discarded/resynchronized at the next magic candidate without writing pixels.
 
 ## Startup, heartbeat, and recovery

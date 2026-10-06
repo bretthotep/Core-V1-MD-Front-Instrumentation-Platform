@@ -160,7 +160,7 @@ core-v1-md/
 ├── widgets/       Independent instruments + EL drawing primitives
 ├── simulator/     Windows simulator window, keyboard mapping, headless mode
 ├── telemetry/     Provider interfaces, mock + live system providers, audio sources, hub, thresholds
-├── display/       DisplayDevice abstraction, RGB565 prototype, planned frame-region/protocol boundary
+├── display/       DisplayDevice, RGB565/frame-region, dirty-detection and protocol prototypes
 ├── animations/    Animation engine, animation types, event → animation profiles
 ├── ui/            Widget manager (focus/pin/rotate), layout, compositor, FrontPanel core
 ├── core/          Qt-free event bus and control events shared by every layer
@@ -411,7 +411,7 @@ Full detail with status, dependencies, risks, tests, and acceptance criteria:
 | Milestone | Title | Status |
 |---|---|---|
 | **M0–M2** | Audit, requirements, architecture/docs | [~] Documentation baseline in progress |
-| **M3–M5** | Display abstraction, protocol, dirty regions | [ ] Planned; current implementation sends full frames only |
+| **M3–M5** | Display abstraction, protocol, dirty regions | [~] Host-side prototypes implemented; USB and firmware remain planned |
 | **M6–M9** | ESP32-S3 POC, physical display, input, measurement | [ ] Planned; no physical hardware tested |
 | **M10–M12** | PCB, Core V1 integration, long-duration testing | [ ] Planned; PCB gated on POC |
 
