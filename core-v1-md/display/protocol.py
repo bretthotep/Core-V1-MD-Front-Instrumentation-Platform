@@ -173,6 +173,8 @@ def fragment_message(
     frame_id: int,
     payload: bytes,
 ) -> tuple[Packet, ...]:
+    if not 0 <= sequence <= 0xFFFFFFFF:
+        raise ValueError("sequence must fit in 32 bits")
     max_payload = MAX_PACKET_SIZE - HEADER.size - CRC.size
     if len(payload) <= max_payload:
         return (Packet(message_type, sequence, frame_id, payload),)

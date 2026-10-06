@@ -157,3 +157,10 @@ def test_fragmentation_is_restricted_to_pixel_updates():
         fragment_message(MessageType.HELLO, 0, 0, b"x" * 2000)
     with pytest.raises(ProtocolError, match="reassembly limit"):
         fragment_message(MessageType.FULL_FRAME, 0, 0, b"x" * (4 * 1024 * 1024 + 1))
+
+
+@pytest.mark.parametrize("sequence", [-1, 0x1_0000_0000])
+@pytest.mark.parametrize("payload", [b"x", b"x" * 2000])
+def test_fragmentation_rejects_out_of_range_sequences(sequence, payload):
+    with pytest.raises(ValueError, match="sequence must fit in 32 bits"):
+        fragment_message(MessageType.FULL_FRAME, sequence, 0, payload)

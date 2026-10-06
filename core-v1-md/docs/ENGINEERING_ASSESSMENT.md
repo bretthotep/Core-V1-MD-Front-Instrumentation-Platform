@@ -17,9 +17,9 @@ The requirements, protocol/performance assumptions, and host-side frame-region a
 | ID | Severity | Finding |
 |---|---|---|
 | EA-001 | MEDIUM | `FutureOledDisplay` supports dirty-region dispatch when a transport opts in, but the default transport records full frames and no production USB/display transport exists. |
-| EA-002 | HIGH | The target's uncompressed full-frame rate has not been budgeted. At 240 × 1000 and 16 bits/pixel, a frame is 480,000 bytes; high refresh rates can impose substantial link and display-interface throughput. Current code has no bandwidth guard or measurements. |
+| EA-002 | HIGH | The theoretical bandwidth budget is documented in `PERFORMANCE.md`, but throughput has not been measured on selected hardware. Current code has no bandwidth guard or physical measurements. |
 | EA-003 | HIGH | The ESP32 integration is only an input parser. `hardware/esp32.py` accepts ASCII `ROT`, `BTN`, `HOME`, and `HELLO` lines; it has no binary framing, capability negotiation, display updates, acknowledgements, reconnect state, or firmware. |
-| EA-004 | HIGH | The physical architecture is unresolved. Display module/interface, ESP32-S3 board/module, memory, power, cabling, mounting, and clearances are not validated. Existing hardware notes still allow direct-PC display paths and generic ESP32-class controllers. |
+| EA-004 | HIGH | The physical architecture specifies a USB-connected ESP32-S3 endpoint, but the display module/interface, board/module, memory, power, cabling, mounting, and clearances are not selected or physically validated. |
 | EA-005 | MEDIUM | The host prototype defines typed `FrameRegion` data and a region/protocol encoding boundary; interoperability and production transport behavior remain unvalidated. |
 | EA-006 | MEDIUM | `SimulatedFrameTransport` exercises dirty regions, latency, dropped updates, disconnect/reconnect, brightness, and input in memory, but does not emulate a real endpoint or physical link. |
 | EA-007 | MEDIUM | Telemetry polling is fault-tolerant during `poll()`, but lifecycle calls (`start()`/`stop()`) are not isolated per provider. The live `psutil` provider is polled by the frame-loop caller; providers requiring slow I/O must implement their own sampling/cache as the interface documentation requires. |
@@ -58,9 +58,9 @@ The requirements, protocol/performance assumptions, and host-side frame-region a
 
 - Full-frame conversion allocates and copies the complete frame. At the provisional dimensions, a single RGB565 buffer is 480,000 bytes before Qt images, transport copies, or controller-side storage.
 - RGB565 byte order is explicitly converted to big-endian in `to_rgb565()`, but the target controller/display byte-order contract remains **TBD** until an actual module is selected and validated.
-- A transport and display controller must agree on payload limits, region bounds, sequencing, fragmentation/reassembly, recovery, and acknowledgements. These contracts do not yet exist.
-- `FutureOledDisplay` currently applies pixel shifting by copying a whole image and does not expose a host-computed damage region. This is not evidence that pixel shifting will work correctly with partial updates.
-- The UI has rich widget and animation behavior but no display-update policy that can avoid retransmitting unchanged areas. Animation regions and focus/navigation invalidation need tests before optimization.
+- The host-side protocol prototype defines payload limits, region bounds, sequencing, fragmentation/reassembly, recovery, and acknowledgements; interoperability with an endpoint and physical transport remains unvalidated.
+- `FutureOledDisplay` applies pixel shifting by copying a whole image; its interaction with partial updates needs validation before hardware use.
+- The host-side update prototype avoids retransmitting unchanged regions, but animation invalidation and performance gains need validation on representative workloads.
 - Error handling around telemetry polling is stronger than lifecycle handling; a provider raising from `start()` can interrupt startup before the display is usable.
 - Hardware requirements such as power, heat, physical fit, connector selection, and airflow cannot be completed by simulator tests.
 
