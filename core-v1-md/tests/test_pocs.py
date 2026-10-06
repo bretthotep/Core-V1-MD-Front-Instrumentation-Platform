@@ -92,7 +92,7 @@ def test_concept_contracts_and_gallery_disclosures(tmp_path):
         bottom = 184 + sum(48 + len(rows) * 29 + 18 for _, rows in scene.concept.cards) - 18
         assert bottom < 772
     write_gallery_readme(tmp_path, list(SCENES))
-    readme = (tmp_path / "README.md").read_text()
+    readme = (tmp_path / "README.md").read_text(encoding="utf-8")
     assert "standalone static QImages" in readme and "bypass FrontPanel" in readme
     assert "no safe voltage numbers" in readme
     assert "first click SELECT → turn STAGE → second click" in readme
