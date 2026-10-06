@@ -1,6 +1,6 @@
 # Host ↔ display-controller protocol
 
-**Status:** **DESIGNED** version-1 proposal; no binary transport or ESP32-S3 firmware is implemented. `hardware/esp32.py` remains a separate **PROTOTYPE** ASCII input parser. The protocol is transport-independent and intended for USB between the Windows host and an ESP32-S3 hardware endpoint. It does not move UI composition or application state to the endpoint.
+**Status:** Version-1 wire format is **DESIGNED**; host-side packet codec, stream decoder, region descriptor, and bounded fragment reassembler are **PROTOTYPE**. USB transport, capability/ACK/reconnect state machine, and ESP32-S3 firmware are not implemented. `hardware/esp32.py` remains a separate **PROTOTYPE** ASCII input parser. The protocol is transport-independent and intended for USB between the Windows host and an ESP32-S3 hardware endpoint. It does not move UI composition or application state to the endpoint.
 
 ## Responsibilities
 
@@ -17,7 +17,7 @@ All multibyte integer fields are unsigned big-endian network order. A transport 
 | 0 | 2 | Magic `0xC1 0x4D` | Detect framing and reject unrelated/corrupt stream bytes. |
 | 2 | 1 | Version | Selects packet/payload interpretation; initial value `1`. Unknown versions are rejected. |
 | 3 | 1 | Message type | Identifies capability, configuration, pixel update, control, input, status, or error payload. |
-| 4 | 2 | Flags | Reserved flags; unknown mandatory flags are rejected. Version 1 sends zero unless a defined flag applies. |
+| 4 | 2 | Flags | `0x0001` marks a fragment; all other bits are reserved and rejected in version 1. |
 | 6 | 4 | Sequence | Monotonically increasing sender message identifier; correlates responses and detects duplicate/out-of-order commands. Wrap is modulo 2³². |
 | 10 | 4 | Frame/update ID | Groups all packet fragments for one rendered update. Zero for messages unrelated to a frame. |
 | 14 | 2 | Payload length | Exact number of payload bytes; receiver validates before allocation/dispatch. |
@@ -44,6 +44,29 @@ The fixed header is 16 bytes; the CRC is 2 bytes. Version 1's proposed maximum c
 
 Version 1 pixel-format enum initially defines RGB565 only. Its byte order must be negotiated/documented for the selected panel; the host prototype currently creates big-endian RGB565. Capability negotiation prevents silently assuming unsupported formats, dimensions, or update modes.
 
+### Version 1 payload layouts
+
+Unless noted otherwise, fields use network byte order. Fixed-size messages reject both missing
+and trailing bytes. Capability masks and enum values not listed below are reserved; unknown
+mandatory requirements cause negotiation failure.
+
+| Message | Payload layout |
+|---|---|
+| `HELLO` | `minimum_version:u8`, `maximum_version:u8`, `host_capabilities:u32`. |
+| `CAPABILITIES` | `selected_version:u8`, `endpoint_capabilities:u32`, `maximum_packet_size:u16`, `native_width:u16`, `native_height:u16`, `pixel_format_mask:u32`, `input_mask:u16`, `display_status:u8`. Version 1 advertises the attached panel's native resolution; a future version may list modes. |
+| `CONFIGURE` | `width:u16`, `height:u16`, `pixel_format:u8` (`1` = RGB565 big-endian), `update_mode:u8` (`0` = full + dirty regions). |
+| `CONFIGURED` | `status:u8` (`0` accepted, `1` rejected), `width:u16`, `height:u16`, `pixel_format:u8`, `reason:u8` (`0` none; other values reserved for documented rejection reasons). |
+| `FULL_FRAME` / `DIRTY_REGION` | 12-byte region descriptor followed by exactly `row_bytes × height` packed pixel bytes, or that logical payload fragmented across packets. |
+| `BRIGHTNESS` | `level:u16`, inclusive range `0..65535`. |
+| `INPUT_EVENT` | `kind:u8`, `source_id:u8`, `delta:i16`. Kinds: `1` encoder delta (signed detent/step delta), `2` encoder press, `3` encoder release, `4` button press, `5` button release. Button events require `delta=0`; IDs identify the physical input only. |
+| `HEARTBEAT` | `uptime_ms:u32`, `health_flags:u16`, `last_applied_frame_id:u32`. |
+| `ACK` | `acknowledged_sequence:u32`, `status:u8` (`0` accepted, `1` duplicate, `2` busy, `3` rejected). |
+| `ERROR` | `rejected_sequence:u32`, `error_code:u16`. Error-code assignments are versioned and reserved for defined protocol/device errors. |
+
+Capability bit assignments, input/source ID assignments, health flags, and detailed error
+codes remain **TBD** before firmware interoperability. The current host codec validates the
+common packet envelope and fragments, not these message-specific payload layouts.
+
 ## Region and fragmentation payloads
 
 Unfragmented `FULL_FRAME` and `DIRTY_REGION` begin with this 12-byte region descriptor:
@@ -61,7 +84,7 @@ Unfragmented `FULL_FRAME` and `DIRTY_REGION` begin with this 12-byte region desc
 
 For fragmentation, each packet's payload starts with a 12-byte fragment descriptor: 2-byte fragment index, 2-byte fragment count, 4-byte total message bytes, and 4-byte byte offset. Bytes after the descriptor are a contiguous slice of the logical message (the region descriptor plus pixel bytes). The packet's frame/update ID identifies the reassembly set. With the proposed 1024-byte packet limit, a fragment has at most 994 data bytes. Receivers validate count, bounds, consistent metadata, non-overlapping offsets, complete coverage, and a bounded reassembly size before applying a region. Incomplete fragments expire on timeout and never partially update the visible panel.
 
-Version 1 encodes packed RGB565 rows with no compression or implicit scaling. Dirty rectangles use coordinates in the negotiated logical display coordinate space.
+Version 1 encodes packed RGB565 rows with no compression or implicit scaling. Dirty rectangles use coordinates in the negotiated logical display coordinate space. The host prototype bounds a reassembled logical message to 4 MiB, permits at most 8192 fragments and four in-flight assemblies, and expires incomplete sets after a default two seconds. These are software limits, not measured hardware timing/capacity.
 
 ## Acknowledgment, ordering, and duplicate behavior
 
@@ -117,7 +140,7 @@ Input event kinds are raw endpoint observations: encoder clockwise/counter-clock
 
 ## Verification without hardware
 
-The protocol is designed to be tested with byte streams and fake endpoints. Tests should cover packet round trips; lengths, CRC, version/type validation; partial reads/multiple messages; duplicate sequences; capability/configuration rejection; region bounds and pixel byte counts; fragmentation/reassembly, timeout, overlaps and missing fragments; ACK/error behavior; disconnect/reconnect full resynchronization; and raw input event ordering. A passing fake-endpoint test is not physical USB/panel validation.
+The protocol is designed to be tested with byte streams and fake endpoints. Current host tests cover packet round trips, lengths, CRC, version/type validation, partial reads/multiple messages, and bounded fragmentation/reassembly. Future endpoint tests should cover duplicate sequences, capability/configuration rejection, region application bounds/pixel byte counts, ACK/error behavior, disconnect/reconnect full resynchronization, and raw input event ordering. A passing fake-codec test is not physical USB/panel validation.
 
 ## Migration
 

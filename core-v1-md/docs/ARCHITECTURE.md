@@ -33,8 +33,9 @@ service, on a different process, or be unit-tested in isolation.
 4. **Composition** – `Compositor.render()` computes the layout, paints each widget clipped
    to its rect, draws focus/pin/rotation decorations and separators, paints animation
    overlays, and optionally the debug overlay – all into a `QImage` sized to the display.
-5. **Presentation** – currently `DisplayDevice.present(full_frame)`. Dirty-region extraction,
-   encoding, packetization, and hardware transport are planned; they are not implemented yet.
+5. **Presentation** – `DisplayDevice.present(full_frame)`. `FutureOledDisplay` can compare
+   successive images and deliver coalesced RGB565 regions to a region-capable transport;
+   USB transport and endpoint negotiation/recovery are not implemented.
 
 Input is asynchronous: an `InputDevice` emits `ControlEvent`s into
 `FrontPanel.handle_control()`, which forwards to `WidgetManager.handle()`.
@@ -69,7 +70,8 @@ flowchart LR
     M --> X[Display DMA / interface]
 ```
 
-Dirty-region flow and USB recovery are designed as follows; the host rendering pipeline currently produces a full image and the following region/transport stages are not yet implemented:
+Dirty-region detection is a host software prototype; the following depicts the intended path
+from host invalidation through a future USB endpoint:
 
 ```mermaid
 flowchart LR
@@ -107,12 +109,16 @@ class DisplayDevice(ABC):
 |---|---|
 | `SimulatorDisplay` | **IMPLEMENTED** resizable Qt widget; size follows the window |
 | `OffscreenDisplay` | **IMPLEMENTED** in-memory fixed size; tests and headless screenshots |
-| `FutureOledDisplay` | **PROTOTYPE** full-frame RGB565 conversion, `FrameTransport`, pixel-shift option; default transport is a recorder, not hardware |
+| `FutureOledDisplay` | **PROTOTYPE** RGB565 full-frame/optional region conversion, `FrameTransport`, pixel-shift option; default transport is a recorder, not hardware |
 
-The next boundary should preserve `DisplayDevice` and `FrontPanel`: rendering/composition
-produce a host-owned frame; a separate update component identifies regions; an encoder emits
-explicit pixel bytes; a transport carries versioned messages; and the endpoint writes pixels
-to the display. Do not place widget or navigation logic in the display driver. See
+The current region detector compares successive full host images at tile granularity and
+coalesces adjacent changed tiles. The packet codec validates individual packets and bounded
+fragment sets; `SimulatedFrameTransport` models in-memory delay, refresh limits, loss, reconnect,
+brightness, and raw input. No USB transport or endpoint exists. Preserve `DisplayDevice` and
+`FrontPanel`: rendering/composition produce a host-owned frame; detection identifies regions;
+an encoder emits explicit pixel bytes; a future transport carries versioned messages; and the
+endpoint writes pixels to the display. Do not place widget or navigation logic in the display
+driver. See
 [`DISPLAY_PROTOCOL.md`](DISPLAY_PROTOCOL.md) and [`PERFORMANCE.md`](PERFORMANCE.md).
 
 ## Widget model

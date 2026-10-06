@@ -20,7 +20,7 @@ Status legend: `[ ] PLANNED`, `[~] IN PROGRESS`, `[x] COMPLETE`. Completion mean
 - **Acceptance:** Requirements state host-authoritative UI, dirty updates, recovery, simulator coverage, ESP32-S3 preference, and unverified physical constraints.
 - **Known risks:** Numeric latency, refresh, power, thermal, and mechanical thresholds remain TBD until selection/measurement.
 
-## M2 — Architecture and documentation alignment [~] IN PROGRESS
+## M2 — Architecture and documentation alignment [x] COMPLETE
 
 - **Objective:** Make all architecture/hardware/UI docs describe the same host-rendered USB-to-ESP32-S3 direction and clearly label status.
 - **Dependencies:** M0 and M1.
@@ -29,31 +29,31 @@ Status legend: `[ ] PLANNED`, `[~] IN PROGRESS`, `[x] COMPLETE`. Completion mean
 - **Acceptance:** Diagrams distinguish host rendering from endpoint hardware, planned PCB is gated on POC, and no simulated behavior is called physical validation.
 - **Known risks:** Performance assumptions and selected hardware remain provisional.
 
-## M3 — Display boundary and frame representation [ ] PLANNED
+## M3 — Display boundary and frame representation [~] IN PROGRESS
 
 - **Objective:** Separate rendering, composition, frame representation, region extraction, encoding, transport, and device concerns while preserving existing `FrontPanel`/`DisplayDevice` use.
 - **Dependencies:** M1/M2 and baseline display tests.
-- **Deliverables:** Only justified frame/pixel/region abstractions; explicit validation of dimensions, stride, and pixel format; fake transport.
-- **Tests:** Resolution, image size, RGB565 byte order, region crops, malformed dimensions, full-frame compatibility, and simulator/offscreen regression.
-- **Acceptance:** Existing simulator behavior is unchanged; display logic contains no widget/application behavior; fake transport observes typed frame/region updates.
+- **Deliverables:** `PixelFormat`, `DirtyRegion`, `FrameRegion`, tile-based `DirtyRegionDetector`, optional region transport while retaining the full-frame transport contract.
+- **Tests:** Resolution, image size, RGB565 byte order, region crops/bounds/length, no change, pixel, grouped/edge/full changes, full-frame compatibility, and offscreen regression.
+- **Acceptance:** Existing simulator behavior is unchanged; a capable fake transport observes full synchronization followed by dirty updates; USB remains unimplemented.
 - **Known risks:** QImage row stride, Qt conversion semantics, and panel-specific byte order must not be conflated.
 
-## M4 — Versioned host/endpoint protocol [ ] PLANNED
+## M4 — Versioned host/endpoint protocol [~] IN PROGRESS
 
 - **Objective:** Implement deterministic framing and validation for capability/configuration, full/dirty updates, brightness, raw input, acknowledgements, heartbeat, and errors.
 - **Dependencies:** M2 protocol design and M3 frame/region representation.
-- **Deliverables:** Host-side codec/parser and fake endpoint; firmware-compatible wire contract.
-- **Tests:** Round trips, CRC, truncation, lengths, versions/types, sequence/ACK, fragmentation/reassembly, invalid regions, and unsupported capabilities.
+- **Deliverables:** Versioned host-side packet codec/stream decoder, CRC validation, pixel-update fragmentation/reassembly, and a documented wire contract. No endpoint or USB transport.
+- **Tests:** Round trips, CRC, truncation, lengths, versions/types, partial stream reads, fragmentation/reassembly, invalid regions, and reassembly bounds. Capability negotiation/ACK state tests remain planned.
 - **Acceptance:** Malformed/corrupt messages cannot cause framebuffer writes; tests need no physical hardware.
 - **Known risks:** Packet size, timeouts, and transport semantics must be checked against selected USB implementation.
 
-## M5 — Dirty-region updates and simulated transport faults [ ] PLANNED
+## M5 — Dirty-region updates and simulated transport faults [~] IN PROGRESS
 
 - **Objective:** Make host invalidation and region transport the normal update path; retain full-frame sync for boot, recovery, reset, and forced refresh.
 - **Dependencies:** M3/M4.
-- **Deliverables:** Deterministic dirty tracking/coalescing, update identifiers, fake transport with latency/loss/disconnect/reconnect, and simulator controls.
-- **Tests:** No change, one pixel, small/multiple/overlapping rectangles, full invalidation, animation areas, drops, reconnect, full resync, brightness, input.
-- **Acceptance:** Unchanged areas are not encoded; endpoint state returns to a known full-frame baseline after recovery.
+- **Deliverables:** Deterministic tile-based dirty tracking/coalescing and opt-in region dispatch; in-memory `SimulatedFrameTransport` for latency, refresh-rate limits, drops, disconnect/reconnect, brightness, and raw input. Interactive simulator controls remain planned.
+- **Tests:** No change, pixel, separated/adjacent/edge/full changes, initial sync, transport latency/rate, drop recovery, reconnect/full sync, brightness, and input are covered. Animation invalidation remains planned.
+- **Acceptance:** Unchanged areas are not sent through a region-capable transport; simulated loss/reconnect returns the framebuffer to a full-frame baseline. Physical endpoint recovery remains planned.
 - **Known risks:** Full-screen animation can approach full-frame traffic; region merging can increase transmitted pixels and needs measurement.
 
 ## M6 — ESP32-S3 development-board POC [ ] PLANNED

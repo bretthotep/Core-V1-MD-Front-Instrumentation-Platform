@@ -197,15 +197,16 @@ Keyboard / ESP32 raw input ─► host interpretation ─► WidgetManager  Comp
 | Widget rendering | `widgets/` | `TelemetrySnapshot`, `Theme`, `QPainter`. Never sensors or hardware. |
 | Theme engine | `themes/` | Colours, fonts, metrics, animation defaults. Qt-free. |
 | Animation engine | `animations/` | Timing, easing, overlays, profiles. Resolves colours from the active theme. |
-| Display abstraction | `display/` | Finished frame/surface and transport boundary. No widget logic. Partial-region protocol is planned. |
+| Display abstraction | `display/` | Frame/region, dirty detection, and packet-codec prototype. No widget logic or real USB transport. |
 | Hardware integration | `hardware/` | Raw inputs → host control events; current ESP32 parser is an ASCII prototype. |
 | Composition | `ui/` | Glues the above. `FrontPanel` is the display-agnostic application core. |
 
 The compositor currently renders a complete `QImage` sized to `DisplayDevice.size` and hands
-it to `DisplayDevice.present()`. `FutureOledDisplay` converts full frames to RGB565; its
-default `NullTransport` records data rather than driving hardware. Dirty-region detection,
-binary framing, USB transport, and endpoint firmware are not implemented yet. The simulator
-and panel tests validate host software only, not a physical OLED.
+it to `DisplayDevice.present()`. `FutureOledDisplay` can compare successive images and send
+RGB565 dirty regions when a transport explicitly supports them; the default `NullTransport`
+records full frames. Host-side packet framing/reassembly and an in-memory fault-injectable
+transport are software prototypes, but USB transport, negotiation/recovery state machine, and
+endpoint firmware are not. Tests validate host software only, not a physical OLED.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for details and extension guides.
 
@@ -349,9 +350,10 @@ Details and open questions: [`docs/HARDWARE.md`](docs/HARDWARE.md).
 
 `display/oled_display.py` provides a software prototype, not a hardware driver:
 
-- frames are converted to big-endian **RGB565** (`to_rgb565`), the common native format of
-  small OLED/AMOLED drivers;
-- complete frames go through `FrameTransport` (`NullTransport` today; no real USB/SPI transport);
+- `DirtyRegionDetector` compares successive host images; a region-capable transport receives
+  the initial/full recovery frame followed by coalesced big-endian **RGB565** regions;
+- transports without region support retain compatible full-frame behavior;
+- `NullTransport` is the default; there is no real USB/SPI transport;
 - optional **burn-in mitigation** via a slow one-pixel orbit;
 - brightness control via `set_brightness()`.
 
@@ -370,10 +372,11 @@ HOME           dedicated home key
 HELLO <fw>     firmware handshake
 ```
 
-This is not the planned display protocol and has no USB transport or firmware. The binary
-protocol design, capability negotiation, dirty regions, fragmentation, and recovery are
-specified in [`docs/DISPLAY_PROTOCOL.md`](docs/DISPLAY_PROTOCOL.md). The host remains
-responsible for gesture timing and navigation; the endpoint reports raw hardware events.
+This is not the planned display protocol and has no USB transport or firmware. Host-side
+version-1 packet encoding/decoding and bounded fragmentation/reassembly are implemented and
+unit-tested; capability negotiation, ACK/recovery state handling, and the endpoint remain
+designed but unimplemented. See [`docs/DISPLAY_PROTOCOL.md`](docs/DISPLAY_PROTOCOL.md). The
+host remains responsible for gesture timing and navigation; the endpoint reports raw events.
 
 ## Engineering documentation
 
