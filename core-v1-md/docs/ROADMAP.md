@@ -1,84 +1,120 @@
 # Roadmap
 
-## Milestone 0 — Simulator Framework
+Status legend: `[ ] PLANNED`, `[~] IN PROGRESS`, `[x] COMPLETE`. Completion means the listed software/documentation acceptance has been met; it does not imply physical hardware validation. Hardware milestones require explicit hardware evidence.
 
-Establish the development environment and the display-agnostic core.
+## M0 — Repository audit [x] COMPLETE
 
-- [x] Repository structure, requirements, test harness
-- [x] CI: lint, tests and headless render on Windows and Ubuntu
-- [x] `DisplayDevice` abstraction with `SimulatorDisplay`, `OffscreenDisplay`, `FutureOledDisplay`
-- [x] Resizable 240 × 1000 simulator window
-- [x] Keyboard/mouse mapping to `ControlEvent`s
-- [x] Debug overlay (F1)
-- [x] Headless render + screenshot mode
-- [ ] Record/replay of telemetry sessions for repeatable demos
+- **Objective:** Understand existing architecture, behavior, test coverage, and risks before refactoring.
+- **Dependencies:** Existing source, docs, and tests.
+- **Deliverables:** `docs/ENGINEERING_ASSESSMENT.md` with implementation status, risks, inconsistencies, and staged recommendations.
+- **Tests:** No code changes in this milestone; record existing CI/test commands.
+- **Acceptance:** Audit distinguishes implemented software from prototype, planned hardware, and unknowns; no speculative refactor precedes assessment.
+- **Known risks:** Audit may miss runtime behavior not covered by current tests.
 
-**Done when:** the simulator runs on Windows, and the same `FrontPanel` renders to any
-`DisplayDevice` without modification.
+## M1 — Requirements baseline [x] COMPLETE
 
-## Milestone 1 — Widget System
+- **Objective:** Establish uniquely identified functional, quality, and hardware requirements.
+- **Dependencies:** M0.
+- **Deliverables:** `docs/REQUIREMENTS.md`, traceability hints, POC/PCB/Core V1 acceptance gates.
+- **Tests:** Documentation review; future protocol/test IDs to be mapped as implementation lands.
+- **Acceptance:** Requirements state host-authoritative UI, dirty updates, recovery, simulator coverage, ESP32-S3 preference, and unverified physical constraints.
+- **Known risks:** Numeric latency, refresh, power, thermal, and mechanical thresholds remain TBD until selection/measurement.
 
-- [x] Widget base class, render context, EL drawing primitives
-- [x] CPU, GPU, RAM, Clock, Network, Audio Visualiser, Application, System, Alert widgets
-- [x] Pinned / rotating / hidden / expanded / collapsed states
-- [x] Jog navigation, focus, auto-rotation, scroll-to-focus layout
-- [x] JSON layout configuration
-- [x] Persist user layout changes between sessions
-- [ ] Storage and peripheral widgets
+## M2 — Architecture and documentation alignment [x] COMPLETE
 
-**Done when:** every widget renders in every state against real and missing data, and the
-layout is fully navigable with the five control events plus HOME.
+- **Objective:** Make all architecture/hardware/UI docs describe the same host-rendered USB-to-ESP32-S3 direction and clearly label status.
+- **Dependencies:** M0 and M1.
+- **Deliverables:** Align `README.md`, `ARCHITECTURE.md`, `HARDWARE.md`, `DESIGN_LANGUAGE.md`, `ROADMAP.md`; add `DISPLAY_PROTOCOL.md`, `PERFORMANCE.md`, and `PCB_ARCHITECTURE.md`.
+- **Tests:** Review diagrams, links, status wording, and theoretical calculations; no physical acceptance.
+- **Acceptance:** Diagrams distinguish host rendering from endpoint hardware, planned PCB is gated on POC, and no simulated behavior is called physical validation.
+- **Known risks:** Performance assumptions and selected hardware remain provisional.
 
-## Milestone 2 — Animation Engine
+## M3 — Display boundary and frame representation [~] IN PROGRESS
 
-- [x] Engine with delays, targets (screen / widget) and theme-aware colours
-- [x] Horizontal wipe, vertical wipe, sliding blocks, segment reveal, scan line, fade
-- [x] Data-driven animation profiles with payload matching
-- [x] Event-driven director (boot, shutdown, app launch/close, network, alerts)
-- [ ] Widget-to-widget transitions on expand/collapse
-- [ ] Profile hot-reload in the simulator
+- **Objective:** Separate rendering, composition, frame representation, region extraction, encoding, transport, and device concerns while preserving existing `FrontPanel`/`DisplayDevice` use.
+- **Dependencies:** M1/M2 and baseline display tests.
+- **Deliverables:** `PixelFormat`, `DirtyRegion`, `FrameRegion`, tile-based `DirtyRegionDetector`, optional region transport while retaining the full-frame transport contract.
+- **Tests:** Resolution, image size, RGB565 byte order, region crops/bounds/length, no change, pixel, grouped/edge/full changes, full-frame compatibility, and offscreen regression.
+- **Acceptance:** Existing simulator behavior is unchanged; a capable fake transport observes full synchronization followed by dirty updates; USB remains unimplemented.
+- **Known risks:** QImage row stride, Qt conversion semantics, and panel-specific byte order must not be conflated.
 
-**Done when:** new application-specific animations can be added without code changes.
+## M4 — Versioned host/endpoint protocol [~] IN PROGRESS
 
-## Milestone 3 — Telemetry Integration
+- **Objective:** Implement deterministic framing and validation for capability/configuration, full/dirty updates, brightness, raw input, acknowledgements, heartbeat, and errors.
+- **Dependencies:** M2 protocol design and M3 frame/region representation.
+- **Deliverables:** Versioned host-side packet codec/stream decoder, CRC validation, pixel-update fragmentation/reassembly, and a documented wire contract. No endpoint or USB transport.
+- **Tests:** Round trips, CRC, truncation, lengths, versions/types, partial stream reads, fragmentation/reassembly, invalid regions, and reassembly bounds. Capability negotiation/ACK state tests remain planned.
+- **Acceptance:** Malformed/corrupt messages cannot cause framebuffer writes; tests need no physical hardware.
+- **Known risks:** Packet size, timeouts, and transport semantics must be checked against selected USB implementation.
 
-- [x] Provider interface, hub merging, threshold events, mock provider
-- [x] Audio source interface and mock source
-- [x] Live system provider (psutil): CPU load/clock/temperature, memory, uptime, fans
-- [x] Network adapter statistics (auto-selected physical adapter, throughput, link state)
-- [x] Configurable thresholds (`telemetry/thresholds.json`, `--thresholds`)
-- [ ] LibreHardwareMonitor provider
-- [ ] HWiNFO shared-memory provider
-- [ ] Windows APIs: foreground window / process tracking
-- [ ] WASAPI loopback audio + FFT
+## M5 — Dirty-region updates and simulated transport faults [~] IN PROGRESS
 
-**Done when:** the simulator shows live data from the real PC with no widget changes.
+- **Objective:** Make host invalidation and region transport the normal update path; retain full-frame sync for boot, recovery, reset, and forced refresh.
+- **Dependencies:** M3/M4.
+- **Deliverables:** Deterministic tile-based dirty tracking/coalescing and opt-in region dispatch; in-memory `SimulatedFrameTransport` for latency, refresh-rate limits, drops, disconnect/reconnect, brightness, and raw input. Interactive simulator controls remain planned.
+- **Tests:** No change, pixel, separated/adjacent/edge/full changes, initial sync, transport latency/rate, drop recovery, reconnect/full sync, brightness, and input are covered. Animation invalidation remains planned.
+- **Acceptance:** Unchanged areas are not sent through a region-capable transport; simulated loss/reconnect returns the framebuffer to a full-frame baseline. Physical endpoint recovery remains planned.
+- **Known risks:** Full-screen animation can approach full-frame traffic; region merging can increase transmitted pixels and needs measurement.
 
-## Milestone 4 — OLED Display Driver
+## M6 — ESP32-S3 development-board POC [ ] PLANNED
 
-- [x] `FutureOledDisplay` contract, RGB565 encoding, pixel-shift mitigation
-- [ ] Select display module
-- [ ] Implement a real `FrameTransport`
-- [ ] Brightness schedule / ambient dimming
-- [ ] Partial updates (dirty rectangles) if the link is bandwidth-limited
+- **Objective:** Prove host USB protocol to a real ESP32-S3 board without designing custom PCB.
+- **Dependencies:** M3–M5, selected ESP32-S3 board, and host tooling.
+- **Deliverables:** Endpoint firmware for negotiation, packet handling, bounded buffering, display transfer stub/driver integration, status, and raw input.
+- **Tests:** Host protocol suite, board-level input/loopback, malformed packet rejection, recovery and sustained-transfer tests.
+- **Acceptance:** Board reports capabilities and raw inputs; receives and validates full/partial pixel updates; host can reconnect and resynchronize.
+- **Known risks:** Exact USB mode, memory/DMA support, toolchain, display interface, and board availability are TBD.
 
-**Done when:** the panel shows the same frames as the simulator at a stable frame rate.
+## M7 — Physical display module validation [ ] PLANNED
 
-## Milestone 5 — ESP32 Front Panel Controller
+- **Objective:** Select and operate a suitable narrow OLED/AMOLED with the POC board.
+- **Dependencies:** M6 and a candidate panel/module.
+- **Deliverables:** Measured resolution/format/byte order, interface timing, brightness behavior, update modes, power, and visible latency.
+- **Tests:** Full-frame/dirty-region equivalence, all region edges, reset/recovery, brightness and static/animated scenes.
+- **Acceptance:** Panel displays host-composed frames reliably at an agreed, measured workload; result is documented as MEASURED.
+- **Known risks:** Datasheet assumptions, driver support, panel scan timing, burn-in, and module availability.
 
-- [x] Host-side protocol draft and parser
-- [ ] Firmware: encoder, switch, HOME key, USB CDC reporting
-- [ ] Serial transport and auto-reconnect on the host
-- [ ] Optional: frame streaming through the ESP32
+## M8 — Physical input integration [ ] PLANNED
 
-**Done when:** the jog wheel controls the simulator and panel with no perceptible latency.
+- **Objective:** Integrate encoder and buttons as raw endpoint events, retaining host interpretation.
+- **Dependencies:** M6 and input hardware.
+- **Deliverables:** Debounced/raw event reporting, host transport connection, documented pin/electrical behavior.
+- **Tests:** Direction, press/release ordering, bounce, malformed input, disconnect/reconnect, gesture classification on host.
+- **Acceptance:** Host simulator/application navigation uses physical controls while firmware contains no menu/navigation policy.
+- **Known risks:** Encoder wiring/noise, GPIO allocation, cable length, and event rate.
 
-## Milestone 6 — Physical Core V1 Integration
+## M9 — Measured performance and OLED care [ ] PLANNED
 
-- [ ] Fascia mounting design for display, encoder and controller
-- [ ] Airflow validation (before/after temperature comparison)
-- [ ] Cable routing and power
-- [ ] Windows service / tray app with auto-start
-- [ ] Final industrial design polish
+- **Objective:** Optimize from measurements and establish brightness/idle/static-content behavior.
+- **Dependencies:** M7 and M8.
+- **Deliverables:** Workload measurements, dirty-region policy, refresh limits, brightness/dimming/blanking policy, long-run telemetry.
+- **Tests:** Static UI, numeric updates, localized/full-screen animation, full sync, repeated loss/recovery; record throughput, latency, CPU, memory, power, and temperature.
+- **Acceptance:** Agreed performance/power/thermal limits pass on selected hardware; values and test conditions reported as MEASURED.
+- **Known risks:** No software strategy eliminates OLED burn-in; lifetime depends on panel and usage.
 
-**Done when:** Core V1-MD runs on boot as an appliance with no measurable thermal penalty.
+## M10 — Custom PCB [ ] PLANNED
+
+- **Objective:** Design a serviceable endpoint PCB only after the development-board and panel POC is proven.
+- **Dependencies:** M6–M9 and an approved component/interface/power/mechanical baseline.
+- **Deliverables:** Schematic/layout, USB protection, regulation, display/encoder/button/sensor connectors, test points, programming/debug, status, mounting.
+- **Tests:** Design-rule/electrical review; prototype bring-up and repeat of POC tests.
+- **Acceptance:** PCB demonstrably reproduces validated POC behavior; schematic/layout and manufacturing files reviewed.
+- **Known risks:** Component choices, signal integrity, power, thermal design, connectors, and mechanical fit.
+
+## M11 — Core V1 physical integration [ ] PLANNED
+
+- **Objective:** Integrate display, board, controls, cabling, and mounting into the case fascia.
+- **Dependencies:** M10 and measured case/display dimensions.
+- **Deliverables:** Mechanical mounting and service procedure, cable routing, airflow/power/thermal/noise/visibility assessment.
+- **Tests:** Repeatable before/after load and temperature tests, cable/service inspection, USB and display recovery, visibility assessment.
+- **Acceptance:** Assembly clears the fan's swept/intake path, meets agreed thermal/power constraints, remains serviceable, and operates reliably.
+- **Known risks:** Fascia clearances, airflow restriction, local heat, vibration, viewing angle, cable strain.
+
+## M12 — Long-duration, recovery, and burn-in observation [ ] PLANNED
+
+- **Objective:** Establish reliability and observe static-content behavior over extended operation.
+- **Dependencies:** M11.
+- **Deliverables:** 24-hour and 72-hour test logs, repeated reconnect/failure results, OLED retention observations, unresolved-risk report.
+- **Tests:** Telemetry/provider failure, USB/display failure, reboot, packet corruption/loss, repeated reconnection, brightness/blanking, static UI.
+- **Acceptance:** Agreed reliability/recovery criteria pass; observations distinguish mitigation from guaranteed prevention of burn-in.
+- **Known risks:** Long-term OLED aging cannot be conclusively established by short testing; panel-specific limits apply.

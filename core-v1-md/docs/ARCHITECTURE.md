@@ -13,7 +13,7 @@ Core V1-MD is layered so that every concern can change independently. The key ru
 | Hardware input | `hardware/` | `core` | No |
 | Widgets | `widgets/` | `core`, `telemetry.models`, `themes` | QtGui (painting) |
 | Animations | `animations/` | `core`, `themes` | QtGui (painting) |
-| Display | `display/` | – | QtGui (+ QtWidgets for the simulator) |
+| Display | `display/` | frame/device abstractions | QtGui (+ QtWidgets for the simulator) |
 | Composition | `ui/` | all of the above | QtGui |
 | Simulator | `simulator/` | `ui`, `display`, `telemetry`, `hardware` | QtWidgets |
 
@@ -33,10 +33,67 @@ service, on a different process, or be unit-tested in isolation.
 4. **Composition** – `Compositor.render()` computes the layout, paints each widget clipped
    to its rect, draws focus/pin/rotation decorations and separators, paints animation
    overlays, and optionally the debug overlay – all into a `QImage` sized to the display.
-5. **Presentation** – `DisplayDevice.present(frame)`.
+5. **Presentation** – `DisplayDevice.present(full_frame)`. `FutureOledDisplay` can compare
+   successive images and deliver coalesced RGB565 regions to a region-capable transport;
+   USB transport and endpoint negotiation/recovery are not implemented.
 
 Input is asynchronous: an `InputDevice` emits `ControlEvent`s into
 `FrontPanel.handle_control()`, which forwards to `WidgetManager.handle()`.
+
+## Target system and software paths
+
+**Designed target:** Windows owns the application. ESP32-S3 is a USB hardware endpoint, not a
+second UI computer. The display module, link throughput, and physical integration remain TBD.
+
+```mermaid
+flowchart LR
+    HOST[Windows host<br/>telemetry • app state • widgets<br/>navigation • UI composition] <-->|USB<br/>display data / raw input| MCU[ESP32-S3<br/>protocol • buffering • DMA<br/>brightness • GPIO • status]
+    MCU --> DISPLAY[OLED / AMOLED]
+    ENCODER[Encoder / buttons] -->|raw hardware events| MCU
+    SENSORS[Optional sensors] <-->|local readings| MCU
+```
+
+The intended host software flow separates responsibilities:
+
+```mermaid
+flowchart LR
+    T[Telemetry providers] --> S[Application state / snapshot]
+    S --> W[Widgets]
+    W --> C[Composition]
+    A[Host animations / navigation] --> C
+    C --> F[Frame representation]
+    F --> D[Dirty-region detection]
+    D --> E[Pixel encoding]
+    E --> P[Versioned protocol]
+    P --> U[USB transport]
+    U --> M[ESP32-S3 endpoint]
+    M --> X[Display DMA / interface]
+```
+
+Dirty-region detection is a host software prototype; the following depicts the intended path
+from host invalidation through a future USB endpoint:
+
+```mermaid
+flowchart LR
+    CHANGE[UI state change] --> INVALID[Host invalidation]
+    INVALID --> REGION[Dirty rectangle]
+    REGION --> ENCODE[RGB565 encoding]
+    ENCODE --> PACKET[Fragment / packetize]
+    PACKET --> USB[USB]
+    USB --> MCU[ESP32-S3 validate / reassemble]
+    MCU --> DMA[DMA display transfer]
+    DMA --> PANEL[Physical display]
+```
+
+```mermaid
+flowchart LR
+    LOST[USB disconnect / endpoint timeout] --> DETECT[Host marks display unsynchronized]
+    DETECT --> REOPEN[Reconnect transport]
+    REOPEN --> NEGOTIATE[Version + capability negotiation]
+    NEGOTIATE --> CONFIGURE[Display configuration]
+    CONFIGURE --> RESYNC[Full-frame resynchronization]
+    RESYNC --> NORMAL[Resume dirty-region updates]
+```
 
 ## Display abstraction
 
@@ -48,11 +105,21 @@ class DisplayDevice(ABC):
     def open(self) / close(self)       # optional
 ```
 
-| Implementation | Purpose |
+| Implementation | Status and purpose |
 |---|---|
-| `SimulatorDisplay` | Resizable Qt widget; size follows the window |
-| `OffscreenDisplay` | In-memory, fixed size; tests and headless screenshots |
-| `FutureOledDisplay` | RGB565 encoding + `FrameTransport`, pixel-shift burn-in mitigation |
+| `SimulatorDisplay` | **IMPLEMENTED** resizable Qt widget; size follows the window |
+| `OffscreenDisplay` | **IMPLEMENTED** in-memory fixed size; tests and headless screenshots |
+| `FutureOledDisplay` | **PROTOTYPE** RGB565 full-frame/optional region conversion, `FrameTransport`, pixel-shift option; default transport is a recorder, not hardware |
+
+The current region detector compares successive full host images at tile granularity and
+coalesces adjacent changed tiles. The packet codec validates individual packets and bounded
+fragment sets; `SimulatedFrameTransport` models in-memory delay, refresh limits, loss, reconnect,
+brightness, and raw input. No USB transport or endpoint exists. Preserve `DisplayDevice` and
+`FrontPanel`: rendering/composition produce a host-owned frame; detection identifies regions;
+an encoder emits explicit pixel bytes; a future transport carries versioned messages; and the
+endpoint writes pixels to the display. Do not place widget or navigation logic in the display
+driver. See
+[`DISPLAY_PROTOCOL.md`](DISPLAY_PROTOCOL.md) and [`PERFORMANCE.md`](PERFORMANCE.md).
 
 ## Widget model
 

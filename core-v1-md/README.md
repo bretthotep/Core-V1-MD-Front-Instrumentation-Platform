@@ -10,9 +10,11 @@ warnings, and one precise jog wheel.
 > This is **not** a generic sensor monitor and **not** an RGB gaming dashboard.
 > It is a premium front-panel instrumentation appliance.
 
-The first deliverable is a **Windows desktop simulator** for rapid UI prototyping. The
-target display hardware has not been chosen yet, so every layer is built so that the
-simulator can later be swapped for the physical panel without touching widget code.
+The **Windows host owns the application and UI**. A desktop simulator supports rapid UI
+prototyping; the intended hardware boundary is USB to an ESP32-S3 endpoint which drives a
+still-unselected OLED/AMOLED panel and reports raw jog-wheel/button events. The simulator
+and current hardware-facing code are software prototypes; no physical panel or controller
+has been validated.
 
 ---
 
@@ -158,7 +160,7 @@ core-v1-md/
 ├── widgets/       Independent instruments + EL drawing primitives
 ├── simulator/     Windows simulator window, keyboard mapping, headless mode
 ├── telemetry/     Provider interfaces, mock + live system providers, audio sources, hub, thresholds
-├── display/       DisplayDevice abstraction: SimulatorDisplay, OffscreenDisplay, FutureOledDisplay
+├── display/       DisplayDevice, RGB565/frame-region, dirty-detection and protocol prototypes
 ├── animations/    Animation engine, animation types, event → animation profiles
 ├── ui/            Widget manager (focus/pin/rotate), layout, compositor, FrontPanel core
 ├── core/          Qt-free event bus and control events shared by every layer
@@ -172,14 +174,19 @@ integration* separate from rendering.
 ### Data flow
 
 ```
- TelemetryProvider(s) ──► TelemetryHub ──► TelemetrySnapshot ──► Widgets ─┐
-         │                     │                                          │
-         │                     └─ derived events ─┐                       ▼
-         │                                        ▼                  Compositor ──► QImage ──► DisplayDevice
- Simulator scenarios / OS hooks ──────────────► EventBus ──► AnimationDirector ──► AnimationEngine ─┘      │
-                                                                                                         ├─ SimulatorDisplay (window)
- InputDevice (keyboard | jog wheel | ESP32) ──► ControlEvent ──► WidgetManager                           ├─ OffscreenDisplay (tests)
-                                                                                                         └─ FutureOledDisplay (panel)
+TelemetryProvider(s) ─► TelemetryHub ─► TelemetrySnapshot ─► Widgets ─┐
+Simulator/OS events ─► EventBus ─► AnimationDirector/Engine ──────────┤
+                                                                      ▼
+Keyboard / ESP32 raw input ─► host interpretation ─► WidgetManager  Composition ─► Frame
+                                                                          │
+                                                                          ▼
+                                                               Dirty-region detection
+                                                                          │
+                                                                          ▼
+                                                               Encoding / protocol
+                                                                          │
+                                                                          ▼
+                                         Simulator / OffscreenDisplay   USB ─► ESP32-S3 ─► Display
 ```
 
 ### Separation of concerns
@@ -190,14 +197,16 @@ integration* separate from rendering.
 | Widget rendering | `widgets/` | `TelemetrySnapshot`, `Theme`, `QPainter`. Never sensors or hardware. |
 | Theme engine | `themes/` | Colours, fonts, metrics, animation defaults. Qt-free. |
 | Animation engine | `animations/` | Timing, easing, overlays, profiles. Resolves colours from the active theme. |
-| Display abstraction | `display/` | How to put a finished `QImage` on a surface. Nothing about widgets. |
-| Hardware integration | `hardware/` | Raw inputs → `ControlEvent`. Nothing about rendering. |
+| Display abstraction | `display/` | Frame/region, dirty detection, and packet-codec prototype. No widget logic or real USB transport. |
+| Hardware integration | `hardware/` | Raw inputs → host control events; current ESP32 parser is an ASCII prototype. |
 | Composition | `ui/` | Glues the above. `FrontPanel` is the display-agnostic application core. |
 
-The compositor renders every frame to an off-screen `QImage` sized to `DisplayDevice.size`
-and hands it to `DisplayDevice.present()`. **The simulator does not know whether the output
-is a window or a physical OLED panel** – `tests/test_panel.py` runs the same `FrontPanel`
-against both `OffscreenDisplay` and `FutureOledDisplay`.
+The compositor currently renders a complete `QImage` sized to `DisplayDevice.size` and hands
+it to `DisplayDevice.present()`. `FutureOledDisplay` can compare successive images and send
+RGB565 dirty regions when a transport explicitly supports them; the default `NullTransport`
+records full frames. Host-side packet framing/reassembly and an in-memory fault-injectable
+transport are software prototypes, but USB transport, negotiation/recovery state machine, and
+endpoint firmware are not. Tests validate host software only, not a physical OLED.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for details and extension guides.
 
@@ -323,35 +332,36 @@ thread, `dispatch_pending()` on the UI thread).
 The `AnimationDirector` turns events into animations; the `AlertWidget` and
 `ApplicationWidget` subscribe directly.
 
-## Planned hardware
+## Designed hardware direction
 
 Details and open questions: [`docs/HARDWARE.md`](docs/HARDWARE.md).
 
 - **Case:** Thermaltake Core V1 (Mini-ITX cube, 200 mm front intake fan behind the fascia).
-- **Display:** a narrow vertical bar-type **AMOLED/OLED** strip integrated into the front
-  fascia (exact module TBD; the simulator's 240 × 1000 is a ~1:4 placeholder).
-- **Controller:** an **ESP32**-class microcontroller behind the fascia bridging USB to the
-  display and reading the jog wheel.
+- **Display:** narrow portrait OLED/AMOLED; 240 × 1000 RGB565 is a provisional logical target,
+  not a selected physical module.
+- **Controller:** ESP32-S3 is the preferred USB-connected hardware endpoint. Development-board
+  proof of concept comes before any custom PCB.
 - **Input:** a detented rotary encoder with push switch (the jog wheel) plus an optional
   HOME key.
-- **Constraint:** near-zero impact on cooling – nothing mounted in the intake path, thin
-  flex cabling, sub-watt power budget.
+- **Constraint:** nothing in the fan's swept path; power, physical fit, and thermal impact are
+  TBD until components are measured.
 
-## Future OLED display support
+## Display transport status
 
-`display/oled_display.py` defines `FutureOledDisplay`, which already fixes the contract:
+`display/oled_display.py` provides a software prototype, not a hardware driver:
 
-- frames are converted to big-endian **RGB565** (`to_rgb565`), the common native format of
-  small OLED/AMOLED drivers;
-- encoded frames go through a pluggable `FrameTransport` (`NullTransport` today; SPI or
-  USB-to-ESP32 later);
+- `DirtyRegionDetector` compares successive host images; a region-capable transport receives
+  the initial/full recovery frame followed by coalesced big-endian **RGB565** regions;
+- transports without region support retain compatible full-frame behavior;
+- `NullTransport` is the default; there is no real USB/SPI transport;
 - optional **burn-in mitigation** via a slow one-pixel orbit;
 - brightness control via `set_brightness()`.
 
-Because the black theme leaves most pixels off, AMOLED power use and burn-in exposure are
-both minimised by design.
+Mostly-black styling and pixel shifting may reduce static pixel exposure; they do not
+eliminate OLED burn-in. Dirty rectangles are the intended production update strategy; full
+frames are for initial synchronization, recovery, and forced refresh.
 
-## Future ESP32 integration
+## ESP32-S3 endpoint status
 
 `hardware/esp32.py` drafts a newline-delimited ASCII protocol over USB CDC serial:
 
@@ -362,8 +372,19 @@ HOME           dedicated home key
 HELLO <fw>     firmware handshake
 ```
 
-Gesture timing lives on the host so firmware stays trivial and timing can be tuned without
-reflashing. A later milestone may move frame streaming to the ESP32 as well.
+This is not the planned display protocol and has no USB transport or firmware. Host-side
+version-1 packet encoding/decoding and bounded fragmentation/reassembly are implemented and
+unit-tested; capability negotiation, ACK/recovery state handling, and the endpoint remain
+designed but unimplemented. See [`docs/DISPLAY_PROTOCOL.md`](docs/DISPLAY_PROTOCOL.md). The
+host remains responsible for gesture timing and navigation; the endpoint reports raw events.
+
+## Engineering documentation
+
+- [Engineering assessment](docs/ENGINEERING_ASSESSMENT.md) — repository baseline and risks.
+- [Requirements](docs/REQUIREMENTS.md) — uniquely identified functional, quality, and hardware requirements.
+- [Display protocol](docs/DISPLAY_PROTOCOL.md) — versioned host/endpoint protocol design.
+- [Performance](docs/PERFORMANCE.md) — theoretical bandwidth and measurement plan.
+- [PCB architecture](docs/PCB_ARCHITECTURE.md) — future board design gated on a development-board POC.
 
 ## Future jog wheel support
 
@@ -384,17 +405,15 @@ so the feel can be tuned before any hardware exists.
 
 ## Roadmap & milestones
 
-Full detail with acceptance criteria: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Full detail with status, dependencies, risks, tests, and acceptance criteria:
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 | Milestone | Title | Status |
 |---|---|---|
-| **0** | Simulator Framework | ✅ Initial implementation |
-| **1** | Widget System | ✅ Initial implementation |
-| **2** | Animation Engine | ✅ Initial implementation |
-| **3** | Telemetry Integration | 🟡 Interfaces, mock data, live psutil provider, configurable thresholds; GPU/app/audio providers pending |
-| **4** | OLED Display Driver | 🟡 Contract (`FutureOledDisplay`) defined; hardware TBD |
-| **5** | ESP32 Front Panel Controller | 🟡 Protocol drafted |
-| **6** | Physical Core V1 Integration | ⚪ Not started |
+| **M0–M2** | Audit, requirements, architecture/docs | [~] Documentation baseline in progress |
+| **M3–M5** | Display abstraction, protocol, dirty regions | [~] Host-side prototypes implemented; USB and firmware remain planned |
+| **M6–M9** | ESP32-S3 POC, physical display, input, measurement | [ ] Planned; no physical hardware tested |
+| **M10–M12** | PCB, Core V1 integration, long-duration testing | [ ] Planned; PCB gated on POC |
 
 ## Development
 
