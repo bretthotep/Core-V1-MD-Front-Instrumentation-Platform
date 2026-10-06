@@ -118,3 +118,46 @@ Status legend: `[ ] PLANNED`, `[~] IN PROGRESS`, `[x] COMPLETE`. Completion mean
 - **Tests:** Telemetry/provider failure, USB/display failure, reboot, packet corruption/loss, repeated reconnection, brightness/blanking, static UI.
 - **Acceptance:** Agreed reliability/recovery criteria pass; observations distinguish mitigation from guaranteed prevention of burn-in.
 - **Known risks:** Long-term OLED aging cannot be conclusively established by short testing; panel-specific limits apply.
+
+## M13 — View/element interaction and shared settings [ ] PLANNED
+
+- **Objective:** Add optional view paging and dial selection/edit/confirmation without
+  conflating control actions with current widget sizing/pinning.
+- **Dependencies:** Host interaction contract in `REQUIREMENTS.md`; existing input abstractions.
+- **Deliverables:** View/element/edit/pending/result controller, stable identities, paused
+  auto-rotation during edits, explicit layout actions, and one versioned settings store used
+  by desktop and device surfaces. Feature write switches default off.
+- **Tests:** Both turn directions, bounded drafts, exactly-once confirmation, cancel/timeout,
+  gesture conflicts, changed/hidden targets, settings revocation/concurrent updates,
+  corrupted persistence and disconnect/reconnect without draft replay.
+- **Acceptance:** REQ-INPUT-003/004 and REQ-SET-001/002 pass automated host tests.
+  Gallery concept scenes are design evidence only and do not complete this milestone.
+- **Known risks:** Conflicting input semantics and settings that appear to grant capabilities.
+
+## M14 — Capability-gated fan and media adapters [ ] PLANNED
+
+- **Objective:** Make supported displayed fan/media elements meaningfully actionable.
+- **Dependencies:** M13; approved backend capability/permission discovery.
+- **Deliverables:** Fan automatic/duty/RPM modes where supported, target versus measured
+  readouts, read-only reasons, and supported active-session media actions.
+- **Tests:** Safe fan minimum/maximum/steps, unsupported modes, stale sensors, stalls,
+  acknowledgments/readback/failures; media session changes, volume/seek bounds and no session.
+- **Acceptance:** REQ-CTRL-001 and REQ-MEDIA-001 pass fake tests and supervised integration
+  tests before any write capability is enabled; monitoring works with all controls off.
+- **Known risks:** Provider coverage varies by motherboard/fan controller and media session.
+
+## M15 — Advanced tuning safety gate [ ] PLANNED
+
+- **Objective:** Permit explicitly opted-in voltage/clock tuning only on validated hardware.
+- **Dependencies:** M13/M14, component-specific validated profiles, authorized backend,
+  fresh health telemetry and independently verified recovery support.
+- **Deliverables:** Locked-by-default controls, risk acknowledgment, conservative increments,
+  coupled voltage/clock validation, thermal/power/current/cooling interlocks, serialized
+  transactions, verified readback, audit and known-good recovery workflow.
+- **Tests:** Unknown limits/hardware, non-finite values, changed limits, stale/missing health,
+  privilege loss, duplicate confirmation, revocation, disconnect, mismatch, instability,
+  successful and failed rollback; supervised hardware tests using approved limits only.
+- **Acceptance:** REQ-TUNE-001–004 pass an explicit safety review and hardware acceptance.
+  Never substitute a universal voltage range or a screenshot for that gate.
+- **Known risks:** Firmware/backend recovery may be unavailable; software cannot eliminate
+  overclocking damage or recover every unstable machine.

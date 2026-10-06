@@ -43,13 +43,19 @@ has been validated.
 
 ## Project vision
 
-A deck display does not have *pages*. It has a fixed set of indicators that light up when
-they matter. Core V1-MD follows the same idea:
+The current display uses a continuous strip of indicators. The updated requirements
+also allow optional view paging and actionable element navigation:
 
 - **One continuous strip of independent widgets** – CPU, GPU, RAM, clock, network, audio
   level, application, system and alerts – stacked vertically.
-- **No page navigation.** A physical jog wheel moves focus between widgets; pressing it
-  changes how much a widget shows, like the DISPLAY key on a MiniDisc recorder.
+- **Current controls:** the jog wheel moves widget focus; pressing changes widget size.
+  **Designed controls:** optional view paging, then element jogging; click to select,
+  turn to stage a setting, click to confirm, or back/long-press to cancel.
+- **Readable fans:** vector fan icons beside named RPM readouts. Fan targets, media actions,
+  and shared app/device feature switches are requirements/design previews, not live controls.
+- **Guarded tuning:** voltage/clock writes remain locked without supported backends,
+  validated component-specific limits, fresh health data and verified recovery support.
+  No universally safe overclock settings or damage-prevention guarantee is supplied.
 - **Application-aware.** Launching a game or an editor triggers a reveal animation chosen
   by data-driven *animation profiles* – never by hard-coded application logic.
 - **Quiet by default, loud when it matters.** Amber and red appear only for alerts.
@@ -58,9 +64,15 @@ they matter. Core V1-MD follows the same idea:
 
 ## UI proof-of-concepts
 
-Test designs rendered by the simulator itself (240 × 1000, seeded mock data). The full set of
-16 scenes and a contact sheet are in [`docs/images/poc/`](docs/images/poc/README.md). To
+Runtime renders (240 × 1000, seeded mock data) and clearly labelled **DESIGNED / MOCK**
+interaction/settings previews are in [`docs/images/poc/`](docs/images/poc/README.md). To
 regenerate them after a design change, run `python -m simulator.pocs`.
+
+The previews cover fan selection and speed editing, media navigation, app/device settings,
+and locked voltage tuning. They do not implement hardware writes, new runtime settings,
+or media transport. The interaction and safety acceptance criteria live in
+[`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md); implementation stages are in
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 <p>
   <img src="docs/images/poc/01-idle.png" width="160" alt="Idle">
@@ -115,6 +127,9 @@ In a Codespace, `--telemetry system` reports the cloud VM, not your PC. Use your
 machine for live data.
 
 ## Simulator controls
+
+These are the **current working controls**. The new view/element/edit flow and feature
+settings are designed requirements only; their gallery previews are not interactive.
 
 The keyboard and mouse stand in for the physical jog wheel. Everything below is translated
 into the same internal `ControlEvent`s that the hardware will produce.
@@ -414,6 +429,8 @@ Full detail with status, dependencies, risks, tests, and acceptance criteria:
 | **M3–M5** | Display abstraction, protocol, dirty regions | [~] Host-side prototypes implemented; USB and firmware remain planned |
 | **M6–M9** | ESP32-S3 POC, physical display, input, measurement | [ ] Planned; no physical hardware tested |
 | **M10–M12** | PCB, Core V1 integration, long-duration testing | [ ] Planned; PCB gated on POC |
+| **M13–M14** | View/element dial flow, shared settings, fan/media adapters | [ ] Designed; gallery previews only |
+| **M15** | Advanced tuning safety gate | [ ] Locked until validated hardware/backend/limits/recovery |
 
 ## Development
 
