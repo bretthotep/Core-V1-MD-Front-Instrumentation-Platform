@@ -1,6 +1,6 @@
 # Host ↔ display-controller protocol
 
-**Status:** Version-1 wire format is **DESIGNED**; host-side packet codec, stream decoder, region descriptor, and bounded fragment reassembler are **PROTOTYPE**. USB transport, capability/ACK/reconnect state machine, and ESP32-S3 firmware are not implemented. `hardware/esp32.py` remains a separate **PROTOTYPE** ASCII input parser. The protocol is transport-independent and intended for USB between the Windows host and an ESP32-S3 hardware endpoint. It does not move UI composition or application state to the endpoint.
+**Status:** Version-1 wire format is **DESIGNED**; host-side packet codec, stream decoder, region descriptor, bounded fragment reassembler, and capability/configuration/ACK session flow are **PROTOTYPE**. USB transport and ESP32-S3 firmware are not implemented. `hardware/esp32.py` remains a separate **PROTOTYPE** ASCII input parser. The protocol is transport-independent and intended for USB between the Windows host and an ESP32-S3 hardware endpoint. It does not move UI composition or application state to the endpoint.
 
 ## Responsibilities
 
@@ -31,7 +31,7 @@ The fixed header is 16 bytes; the CRC is 2 bytes. Version 1's proposed maximum c
 | Value | Message | Direction | Payload (version 1 proposal) |
 |---:|---|---|---|
 | `0x01` | `HELLO` | Host → endpoint | Minimum/maximum supported protocol version and host capability bits. |
-| `0x02` | `CAPABILITIES` | Endpoint → host | Selected protocol version, endpoint capability bits, maximum packet payload, supported resolutions, pixel formats, input features, and display status. |
+| `0x02` | `CAPABILITIES` | Endpoint → host | Selected protocol version, endpoint capability bits, maximum encoded packet size, native resolution, pixel formats, input features, and display status. |
 | `0x03` | `CONFIGURE` | Host → endpoint | Width, height, selected pixel-format enum, and requested update mode. |
 | `0x04` | `CONFIGURED` | Endpoint → host | Accepted dimensions/format/modes or a typed rejection reason. |
 | `0x05` | `FULL_FRAME` | Host → endpoint | Region header for `(0,0,width,height)` followed by packed pixels, fragmented if required. |
@@ -53,7 +53,7 @@ mandatory requirements cause negotiation failure.
 | Message | Payload layout |
 |---|---|
 | `HELLO` | `minimum_version:u8`, `maximum_version:u8`, `host_capabilities:u32`. |
-| `CAPABILITIES` | `selected_version:u8`, `endpoint_capabilities:u32`, `maximum_packet_size:u16`, `native_width:u16`, `native_height:u16`, `pixel_format_mask:u32`, `input_mask:u16`, `display_status:u8`. Version 1 advertises the attached panel's native resolution; a future version may list modes. |
+| `CAPABILITIES` | `selected_version:u8`, `endpoint_capabilities:u32`, `maximum_packet_size:u16`, `native_width:u16`, `native_height:u16`, `pixel_format_mask:u32`, `input_mask:u16`, `display_status:u8`. `maximum_packet_size` is the complete encoded packet size, including header and CRC. Version 1 advertises the attached panel's native resolution; a future version may list modes. |
 | `CONFIGURE` | `width:u16`, `height:u16`, `pixel_format:u8` (`1` = RGB565 big-endian), `update_mode:u8` (`0` = full + dirty regions). |
 | `CONFIGURED` | `status:u8` (`0` accepted, `1` rejected), `width:u16`, `height:u16`, `pixel_format:u8`, `reason:u8` (`0` none; other values reserved for documented rejection reasons). |
 | `FULL_FRAME` / `DIRTY_REGION` | 12-byte region descriptor followed by exactly `row_bytes × height` packed pixel bytes, or that logical payload fragmented across packets. |
@@ -63,9 +63,11 @@ mandatory requirements cause negotiation failure.
 | `ACK` | `acknowledged_sequence:u32`, `status:u8` (`0` accepted, `1` duplicate, `2` busy, `3` rejected). |
 | `ERROR` | `rejected_sequence:u32`, `error_code:u16`. Error-code assignments are versioned and reserved for defined protocol/device errors. |
 
-Capability bit assignments, input/source ID assignments, health flags, and detailed error
-codes remain **TBD** before firmware interoperability. The current host codec validates the
-common packet envelope and fragments, not these message-specific payload layouts.
+Capability bit assignments other than the version-1 pixel-format mask, input/source ID
+assignments, health flags, and detailed error codes remain **TBD** before firmware
+interoperability. Pixel-format mask bit 0 represents enum value 1 (RGB565 big-endian).
+The host session supports only that format and the negotiated native resolution. It rejects
+an endpoint packet limit below what is needed to carry fragmented pixel data.
 
 ## Region and fragmentation payloads
 
@@ -91,6 +93,7 @@ Version 1 encodes packed RGB565 rows with no compression or implicit scaling. Di
 - Each sender increments its packet sequence for every packet. ACK references the message sequence; for a fragmented update this is the first fragment's sequence, carried in every fragment descriptor. Frame/update ID groups pixel traffic across fragments.
 - Endpoint ACKs accepted/rejected `CONFIGURE`, completed full-frame/dirty-region updates, and `BRIGHTNESS`; it may defer ACK until display transfer completion. Heartbeats and raw input events do not require per-message ACK.
 - The host permits a bounded number of outstanding commands (initial proposal: one display update); exact timeout/window are **TBD** and measured on the selected transport.
+- The host session permits one outstanding pixel update. It retains the exact packet set after a `busy` ACK for an explicit retry; ACKs for another sequence are rejected. Accepted/duplicate ACK of the initial full frame is required before dirty updates are permitted. Timeout scheduling and automatic retry/backoff are not implemented.
 - A duplicate logical update sequence must not apply a pixel update twice. Cache a bounded recent response window and return `duplicate`/the prior result where possible. Sequence gaps alone do not imply a missing display update; update IDs and explicit ACK/timeouts govern recovery.
 - Rejection, CRC failure, unsupported capability, malformed dimensions/length, reassembly failure, and endpoint busy conditions return an error or negative ACK where a valid header allows safe correlation. Invalid bytes are discarded/resynchronized at the next magic candidate without writing pixels.
 
@@ -140,7 +143,7 @@ Input event kinds are raw endpoint observations: encoder clockwise/counter-clock
 
 ## Verification without hardware
 
-The protocol is designed to be tested with byte streams and fake endpoints. Current host tests cover packet round trips, lengths, CRC, version/type validation, partial reads/multiple messages, and bounded fragmentation/reassembly. Future endpoint tests should cover duplicate sequences, capability/configuration rejection, region application bounds/pixel byte counts, ACK/error behavior, disconnect/reconnect full resynchronization, and raw input event ordering. A passing fake-codec test is not physical USB/panel validation.
+The protocol is designed to be tested with byte streams and fake endpoints. Host tests cover packet round trips, lengths, CRC, version/type validation, partial reads/multiple messages, bounded fragmentation/reassembly, capability/configuration negotiation, ACK correlation, busy retry, and full-frame gating of dirty updates. Endpoint tests should cover duplicate sequences, region application bounds/pixel byte counts, ACK/error behavior, disconnect/reconnect full resynchronization, and raw input event ordering. A passing fake-session test is not physical USB/panel validation.
 
 ## Migration
 

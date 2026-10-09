@@ -172,10 +172,14 @@ def fragment_message(
     sequence: int,
     frame_id: int,
     payload: bytes,
+    max_packet_size: int = MAX_PACKET_SIZE,
 ) -> tuple[Packet, ...]:
     if not 0 <= sequence <= 0xFFFFFFFF:
         raise ValueError("sequence must fit in 32 bits")
-    max_payload = MAX_PACKET_SIZE - HEADER.size - CRC.size
+    minimum_packet_size = HEADER.size + CRC.size + FRAGMENT.size + 1
+    if not minimum_packet_size <= max_packet_size <= MAX_PACKET_SIZE:
+        raise ProtocolError("maximum packet size is unsupported")
+    max_payload = max_packet_size - HEADER.size - CRC.size
     if len(payload) <= max_payload:
         return (Packet(message_type, sequence, frame_id, payload),)
     if message_type not in (MessageType.FULL_FRAME, MessageType.DIRTY_REGION):

@@ -43,7 +43,7 @@ Status legend: `[ ] PLANNED`, `[~] IN PROGRESS`, `[x] COMPLETE`. Completion mean
 - **Objective:** Implement deterministic framing and validation for capability/configuration, full/dirty updates, brightness, raw input, acknowledgements, heartbeat, and errors.
 - **Dependencies:** M2 protocol design and M3 frame/region representation.
 - **Deliverables:** Versioned host-side packet codec/stream decoder, CRC validation, pixel-update fragmentation/reassembly, and a documented wire contract. No endpoint or USB transport.
-- **Tests:** Round trips, CRC, truncation, lengths, versions/types, partial stream reads, fragmentation/reassembly, invalid regions, and reassembly bounds. Capability negotiation/ACK state tests remain planned.
+- **Tests:** Round trips, CRC, truncation, lengths, versions/types, partial stream reads, fragmentation/reassembly, invalid regions, reassembly bounds, capability/configuration negotiation, ACK correlation, busy retry, and full-frame-before-dirty gating.
 - **Acceptance:** Malformed/corrupt messages cannot cause framebuffer writes; tests need no physical hardware.
 - **Known risks:** Packet size, timeouts, and transport semantics must be checked against selected USB implementation.
 
