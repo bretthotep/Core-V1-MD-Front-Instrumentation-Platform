@@ -14,10 +14,10 @@ from display.protocol import (
     MAX_FRAGMENTS,
     MAX_PACKET_SIZE,
     MAX_REASSEMBLED_MESSAGE,
+    REGION,
     MessageType,
     Packet,
     ProtocolError,
-    REGION,
     encode_region,
     fragment_message,
 )
